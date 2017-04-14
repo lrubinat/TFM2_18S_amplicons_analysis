@@ -43,7 +43,7 @@ Let's read the dataset and remove the samples containing less than 49975 reads:
 setwd("~/Documents/TFM2/TFM2_18S_amplicons_analysis/")
 
 #read data 
-tb18_tax <- read.table(file="~/Documents/TFM_returns/TFM/home/data/MALASPINA/Malaspina_18S_Surface/OTUtb_18S_curated_46808_OTUs.txt", head=TRUE, fill=TRUE)
+tb18_tax <- read.table(file="~/Documents/TFM2/TFM2_18S_amplicons_analysis/input/OTUtb_18S_curated_46808_OTUs.txt", head=TRUE, fill=TRUE)
 
 #table dimensions and format before setting column names
 dim(tb18_tax) # 46808   132
@@ -56,7 +56,7 @@ tb18_tax[is.na(tb18_tax)]<-"NA"
 dim(tb18_tax) #46808   131
 tb18_tax[1:5,1:5]
 
-#drop repeated samples in stations 68 and 71:
+#drop repeated samples in stations 68a and 71a:
 tb18_tax<-subset(tb18_tax, select=-c(st068a_MD1254,st071a_MD1318))
 dim(tb18_tax)
 
@@ -71,9 +71,9 @@ dim(tb18_tax_occur) #46808   122
 tb18_tax_occur[1:5,1:5]
 
 amplicons_per_sample_tb18<-colSums(tb18_tax_occur)
+summary(amplicons_per_sample_tb18) #median of amplicons per sample = ~98600)
+#we'll remove all samples with less than 49975 reads.
 amplicons_per_sample_tb18[which(colSums(tb18_tax_occur)<49975)]
-#initially we rarefied at 49975 reads; in this new version analysis
-#we remove all samples with less than 49975 reads.
 
 #remove samples with less than 49975 reads
 tb18_tax_occur_min49975 <- tb18_tax_occur[,colSums(tb18_tax_occur) >= 49975]
@@ -151,7 +151,7 @@ Let's check out how many OTUs don't appear in the new table:
 length(which(colSums(tb18_tax_occur_ss49975)==0)) #5992
 ```
 
-There are 20487 OTUs that don't show any occurrence in the normalized data. Let's remove them from the table and take a look at its final dimensions:
+There are 5992 OTUs that don't show any occurrence in the normalized data. Let's remove them from the table and take a look at its final dimensions:
 
 ```{r species_richness_rarefaction5, echo=1:3}
 tb18_tax_occur_ss49975_no_cero<-tb18_tax_occur_ss49975[,-(which(colSums(tb18_tax_occur_ss49975)==0))]
@@ -162,11 +162,11 @@ dim(tb18_tax_occur_ss49975_no_cero) #105 40816
 ```
 
 Datasets summary:
-dim(tb18_tax) --> 46808   129
-dim(tb18_tax_occur) --> 46808   122
-dim(tb18_tax_occur_ss49975_no_cero) --> 105 40816
-
-
+```{r dataset_summary}
+dim(tb18_tax) #46808   129
+dim(tb18_tax_occur) #46808   122
+dim(tb18_tax_occur_ss49975_no_cero) #105 40816
+```
 
 
 ## 1.3) General community analysis
@@ -177,7 +177,7 @@ dim(tb18_tax_occur_ss49975_no_cero) --> 105 40816
 tb18_tax_occur_ss49975_div <- diversity(tb18_tax_occur_ss49975_no_cero, index="shannon")
 ```
 
-Most of the samples take Shannon Index values between 5.5 and 6:
+Most of the samples take Shannon Index values around 6:
 
 ```{r shannon_index2, echo=FALSE}
 boxplot(tb18_tax_occur_ss49975_div, pch=19, main="Shannon's index of diversity")
@@ -202,7 +202,7 @@ Maximum number of OTUs per sample:
 max(OTUs_per_sample_18S_tax_occur_ss49975)
 ```
 
-In most of the samples, we can identify between 3000 and 4500 OTUs:
+In most of the samples, we can identify about 4000 OTUs:
 
 ```{r richness_otu_no4, echo=TRUE}
 plot(sort(OTUs_per_sample_18S_tax_occur_ss49975), pch=19)
@@ -214,10 +214,12 @@ boxplot(OTUs_per_sample_18S_tax_occur_ss49975, pch=19)
 #### 1.3.3.1) Pielou's index
 
 ```{r pielou_index_of_evenness1, echo=TRUE}
-pielou_evenness_18S_tax_occur_ss49975 <- tb18_tax_occur_ss49975_div/log(OTUs_per_sample_18S_tax_occur_ss49975)
+pielou_evenness_18S_tax_occur_ss49975<-tb18_tax_occur_ss49975_div/log(OTUs_per_sample_18S_tax_occur_ss49975)
 ```
 
-The Pielou index (constrained between 0 and 1) takes values closer to 1 as the variation of species proportion in a sample decreases. Most of the samples get values between 0.7 and 0.8, meaning that the numerical composition of different OTUs in a sample is highly similar:
+The Pielou index (constrained between 0 and 1) takes values closer to 1 as the variation of species proportion in a sample increases. Most of the samples get values between 0.7 and 0.8, meaning that the numerical composition of different OTUs in a sample is highly variable - there's no constant presence of dominant species.
+
+The less variation in communities between the species (and the presence of a dominant specie), the lower J' is. 
 
 ```{r pielou_index_of_evenness2, echo=TRUE}
 plot(sort(pielou_evenness_18S_tax_occur_ss49975), pch=19)
@@ -230,7 +232,7 @@ The OTU_6, with 196592 reads, is the most abundant in the overall dataset:
 head(sort(colSums(tb18_tax_occur_ss49975_no_cero), decreasing=T), n=10L)
 ```
 
-Most of the OTUs show very few occurrences; the plot suggests that we will probably be able to identify a significant ammount of rare otus:
+Most of the OTUs show very few occurrences; suggesting that we will probably be able to identify a significant ammount of rare otus:
 
 ```{r OTUs_overall_abundance2, echo=TRUE}
 plot(log(sort(colSums(tb18_tax_occur_ss49975_no_cero), decreasing=T)), pch=19)
@@ -283,9 +285,17 @@ veiledspec(tb18_tax_occur_ss49975_dist_all)
 --->
 
 ```{r rarefraction_curve, echo=TRUE}
+
+rarec_input<-t(as.matrix(colSums(tb18_tax_occur_ss49975_no_cero)))
+
+#rarec_input<-as.matrix(t(colSums(abund_per_SAG_id95_st_subset3st)))
+tb18_rarecurve_step1000_10000<-rarecurve(rarec_input, step = 1000, 10000, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity in pico-nano size fraction\n(40,816 OTUs; 5,247,375 reads\n")
+tb18_rarecurve_step1000_10000
+
+
+
 ?rarecurve
 rarecurve(t(colSums(tb18_tax_occur_ss49975_no_cero)))
-
 
 test<-colSums(tb18_tax_occur_ss49975_no_cero)
 rarecurve(test, step = 1, 50000, xlab = "Sample Size", ylab = "OTUs", label = TRUE)
