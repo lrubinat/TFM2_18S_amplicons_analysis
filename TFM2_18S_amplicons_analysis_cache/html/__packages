@@ -15,3 +15,5 @@ foreign
 shapefiles
 fossil
 ggrepel
+dendextend
+forcats

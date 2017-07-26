@@ -20,7 +20,7 @@ opts_chunk$set(cache=TRUE, autodep=TRUE)
 ```
 --->
 
-```{r libraries, echo=T, message=F}
+```{r libraries, echo=F, results="hide", warning=F, message=F}
 library(data.table)
 library(dplyr)
 library(DT)
@@ -30,6 +30,8 @@ library(vegan)
 library(iNEXT)
 library(fossil)
 library(ggrepel)
+library(dendextend)
+library(forcats)
 ```
 
 
@@ -37,9 +39,10 @@ library(ggrepel)
 
 ## 1.1) Data overview
 
-Let's read the dataset and remove the samples containing less than 49975 reads:
 
-``` {r load_data, echo=FALSE, message=FALSE}
+``` {r load_data, echo=FALSE, message=FALSE, results="hide", warning=F}
+#Let's read the dataset and remove the samples containing less than 49975 reads:
+
 setwd("~/Documents/TFM2/TFM2_16S_amplicons_analysis/")
 
 #read data 
@@ -71,9 +74,17 @@ tb18_class[1:5,1:7]
 tb18_tax_occur <- tb18_tax[,1:122]
 dim(tb18_tax_occur) #46690   122
 tb18_tax_occur[1:5,1:5]
+```
 
+The dataset "Malaspina 18S iTags" contains reads from **122 samples of Malaspina**. On average, each sample contains 126100 OTUs:
+
+```{r summary, echo=FALSE, message=FALSE, warning=F}
 amplicons_per_sample_tb18<-colSums(tb18_tax_occur)
-summary(amplicons_per_sample_tb18) #median of amplicons per sample = ~98600)
+summary(amplicons_per_sample_tb18) 
+#median of amplicons per sample = ~98630)
+```
+
+```{r samples_selection, echo=FALSE, message=FALSE, results="hide", warning=F}
 #we'll remove all samples with less than 49975 reads.
 amplicons_per_sample_tb18[which(colSums(tb18_tax_occur)<49975)]
 
@@ -82,54 +93,59 @@ tb18_tax_occur_min49975 <- tb18_tax_occur[,colSums(tb18_tax_occur) >= 49975]
 dim(tb18_tax_occur_min49975) #46690   105
 
 #remove samples with omitted in 16S dataset (so that we can compare the relative abundance of 16S and 18S OTUs considering the same samples)
-tb18_tax_occur_min49975<-subset(tb18_tax_occur_min49975, select=-c(st144_MD2926,st122_MD2304,st124_MD2332,st141_MD2821,st116_MD2151,st130_MD2474, st139_MD2751,st119_MD2215,st146_MD2973,st125_MD2340,st121_MD2247,st135_MD2662,st071b_MD1324))
-
+tb18_tax_occur_min49975<-subset(tb18_tax_occur_min49975, select=-c(st144_MD2926,st122_MD2304,st124_MD2332,st141_MD2821,st116_MD2151,st130_MD2474, st139_MD2751,st119_MD2215,st146_MD2973,st125_MD2340,st121_MD2247,st135_MD2662,st071b_MD1324,st134_MD2624))
 
 dim(tb18_tax_occur_min49975) #46690    92
 
 #let's check if we loose any OTU when excluding the mentioned stations.
-tb18_tax_occur_min49975_no_cero<-tb18_tax_occur_min49975[-(which(rowSums(tb18_tax_occur_min49975)==0)),]
-dim(tb18_tax_occur_min49975_no_cero)
+tb18_tax_occur_min49975<-tb18_tax_occur_min49975[-(which(rowSums(tb18_tax_occur_min49975)==0)),]
+dim(tb18_tax_occur_min49975)
 ```
 
-Table dimensions and content outline:
 
-```{r starting_dataset, echo=FALSE}
+```{r starting_dataset, echo=FALSE, results="hide"}
+#Table dimensions and content outline:
+
 dim(tb18_tax_occur_min49975)
 tb18_tax_occur_min49975[1:5,1:5]
 ```
 
-Minimum number of reads per station:
 
-```{r reads_per_sample_overview1, echo=1}
+```{r reads_per_sample_overview1, echo=F, results="hide"}
+#Minimum number of reads per station:
+
 min(colSums(tb18_tax_occur_min49975)) 
 #49975
 ```
 
-Maximum number of reads per station:
 
-```{r reads_per_sample_overview2, echo=1}
+```{r reads_per_sample_overview2, echo=F, results="hide"}
+#Maximum number of reads per station:
+
 max(colSums(tb18_tax_occur_min49975)) 
 # max: 935755
 ```
 
-Identification of stations with higher number of reads:
 
-```{r reads_per_sample_overview3, echo=TRUE}
+```{r reads_per_sample_overview3, echo=F, results="hide"}
+#Identification of stations with higher number of reads:
+
 amplicons_per_sample<-colSums(tb18_tax_occur_min49975)
 amplicons_per_sample[which(colSums(tb18_tax_occur_min49975)>300000)]
 ```
-
+\
 Overall reads per sample:
 
 ``` {r reads_per_sample_overview4, echo=FALSE}
-plot(sort(colSums(tb18_tax_occur_min49975)), pch=19, xlab="sample", ylab="reads per sample", cex=0.9)
+plot(sort(colSums(tb18_tax_occur_min49975)), pch=19, xlab="sample no.", ylab="reads per sample", cex=0.9)
 ```
 
 
 ## 1.2) Normalization
 
-Let's normalize the original dataset by randomly subsampling 49975 reads in each station:
+\
+In order to keep as many samples as possible, we rarefy at **49975 reads per sample**. By that, we loose 31 samples, and after removing the exluded samples in the 16S dataset (to make them comparable), we end up with a **normalized dataset containing 43 samples and 5669 OTUs**.
+
 
 ``` {r species_richness_rarefaction1, echo=TRUE}
 tb18_tax_occur_min49975_t<-t(tb18_tax_occur_min49975)
@@ -160,9 +176,9 @@ There are 8045 OTUs that don't show any occurrence in the normalized data. Let's
 ```{r species_richness_rarefaction5, echo=1:3}
 tb18_tax_occur_ss49975_no_cero<-tb18_tax_occur_ss49975[,-(which(colSums(tb18_tax_occur_ss49975)==0))]
 tb18_tax_occur_ss49975_no_cero<-tb18_tax_occur_ss49975_no_cero[mixedorder(row.names(tb18_tax_occur_ss49975_no_cero)),]
-dim(tb18_tax_occur_ss49975_no_cero) #92 38645
+dim(tb18_tax_occur_ss49975_no_cero) #91 38645
 
-#the final dimensions of the normalized table are 92 26657.
+#the final dimensions of the normalized table are 91 26657.
 #38645 + 8045 = 46690
 ```
 
@@ -170,10 +186,10 @@ Datasets summary:
 ```{r dataset_summary}
 dim(tb18_tax) #46690   129
 dim(tb18_tax_occur) #46690   122
-dim(tb18_tax_occur_ss49975_no_cero) #92 38645
+dim(tb18_tax_occur_ss49975_no_cero) #91 38645
 ```
 
-
+<!---
 ## 1.3) General community analysis
 
 ### 1.3.1) Richness and evenness (Shannon index)
@@ -248,7 +264,7 @@ plot(log(sort(colSums(tb18_tax_occur_ss49975_no_cero), decreasing=T)), pch=19)
 library(sads)
 ?sads
 --->
-
+<!---
 ### 1.3.4) Abundance Models
 #### 1.3.4.1) Rank-Abundance or Dominance/Diversity Model ("radfit")
 
@@ -289,11 +305,11 @@ veiledspec(tb18_tax_occur_ss49975_dist_all)
 ```{r rarefraction_curve, echo=TRUE}
 rarec_input<-t(as.matrix(colSums(tb18_tax_occur_ss49975_no_cero)))
 
-tb18_rarecurve_step1000_40000<-rarecurve(rarec_input, step = 1000, 40000, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity step=1000 & ss=40000\n(40,816 OTUs; 5,247,375 reads)\n")
+#####tb18_rarecurve_step1000_40000<-rarecurve(rarec_input, step = 1000, 40000, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity step=1000 & ss=40000\n(40,816 OTUs; 5,247,375 reads)\n")
 
 
-rarec_allOTUs_input<-t(as.matrix(colSums(t(tb18_tax_occur))))
-tb18_rarecurve_allOTUs_step1000_46690<-rarecurve(rarec_allOTUs_input, step = 1000, 46690, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity non-rarefied step=1000 & ss=100000\n(46,690 OTUs; 15,386,452 reads)\n")
+######rarec_allOTUs_input<-t(as.matrix(colSums(t(tb18_tax_occur))))
+######tb18_rarecurve_allOTUs_step1000_46690<-rarecurve(rarec_allOTUs_input, step = 1000, 46690, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity non-rarefied step=1000 & ss=100000\n(46,690 OTUs; 15,386,452 reads)\n")
 ```
 
 
@@ -338,10 +354,222 @@ When implementing a most robut function for computing NMDS plots, the result is 
 tb18_tax_occur_ss49975_no_cero.meta_nmds<-metaMDS(tb18_tax_occur_ss49975_no_cero.bray)
 plot(tb18_tax_occur_ss49975_no_cero.meta_nmds, main="metaMDS method")
 ```
+--->
+
+
+
+
+## 1.3) General community analysis
+
+### 1.3.1) Richness and evenness (Shannon index)
+
+```{r shannon_index1_v2, echo=FALSE}
+tb18_tax_occur_ss49975_div <- diversity(tb18_tax_occur_ss49975_no_cero, index="shannon")
+```
+
+Most of the samples take Shannon Index values around 6:
+
+```{r shannon_index2_v2, echo=FALSE}
+boxplot(tb18_tax_occur_ss49975_div, pch=19, main="TP 18S Shannon's index of diversity",ylab="Shannon's index")
+plot(sort(tb18_tax_occur_ss49975_div), pch=19, main="TP 18S Shannon's index of diversity", xlab="sample no.", ylab="Shannon's index")
+```
+
+### 1.3.2) Richness: OTU number
+
+```{r richness_otu_no1_v2, echo=FALSE}
+OTUs_per_sample_18S_tax_occur_ss49975<-specnumber(tb18_tax_occur_ss49975_no_cero)
+```
+
+Lowest number of OTUs per sample:
+
+```{r richness_otu_no2_v2, echo=FALSE}
+min(OTUs_per_sample_18S_tax_occur_ss49975)
+```
+
+Maximum number of OTUs per sample:
+
+```{r richness_otu_no3_v2, echo=FALSE}
+max(OTUs_per_sample_18S_tax_occur_ss49975)
+```
+
+In most of the samples, we can identify between 600 and 700 OTUs:
+
+```{r richness_otu_no4_v2, echo=F}
+plot(sort(OTUs_per_sample_18S_tax_occur_ss49975), pch=19, main="TP 18S no. of OTUs per sample", xlab="sample no.", ylab="no. of OTUs")
+boxplot(OTUs_per_sample_18S_tax_occur_ss49975, pch=19, main="TP 18S no. of OTUs per sample", ylab="no. of OTUs")
+```
+
+### 1.3.3) Index of evenness
+
+#### 1.3.3.1) Pielou's index
+
+```{r pielou_index_of_evenness1_v2, echo=F, results="hide"}
+pielou_evenness_18S_tax_occur_ss49975<-tb18_tax_occur_ss49975_div/log(OTUs_per_sample_18S_tax_occur_ss49975)
+```
+
+The Pielou index (constrained between 0 and 1) takes values closer to 1 as the variation of species proportion in a sample increases. Most of the samples get values between 0.90 and 0.95, meaning that the numerical composition of different OTUs in a sample is highly variable - there's no constant presence of dominant species.
+'
+```{r pielou_index_of_evenness2_v2, echo=F}
+plot(sort(pielou_evenness_18S_tax_occur_ss49975), pch=19, main="TP 18S Pielou's index", xlab="sample no.", ylab="Pielou's index")
+boxplot(pielou_evenness_18S_tax_occur_ss49975, pch=19,  main="TP 18S Pielou's index", ylab="Pielou's index")
+```
+
+
+<!---
+#### 1.3.3.2) Sads
+library(sads)
+?sads
+--->
+
+### 1.3.4) Abundance Models
+
+
+```{r OTUs_overall_abundance_v2, echo=F, results="hide"}
+#The OTU_38, with 874 reads, is the most abundant in the overall dataset:
+
+head(sort(colSums(tb18_tax_occur_ss49975_no_cero), decreasing=T), n=10L)
+```
+
+Most of the OTUs show very few occurrences, suggesting that we will probably be able to identify a significant ammount of rare otus:
+
+```{r OTUs_overall_abundance2_v2, echo=F, results="hide"}
+#previous version:
+#plot(log(sort(colSums(tb18_tax_occur_ss49975_no_cero), decreasing=T)), pch=19)
+
+tb18_tax_occur_ss49975_no_cero_rank<-as.data.table(t(tb18_tax_occur_ss49975_no_cero))
+tb18_tax_occur_ss49975_no_cero_rank[,V1:=rowSums(tb18_tax_occur_ss49975_no_cero_rank)]
+tb18_tax_occur_ss49975_no_cero_rank<-tb18_tax_occur_ss49975_no_cero_rank[order(V1,decreasing = T)]
+tb18_tax_occur_ss49975_no_cero_rank[,rank:=1:nrow(tb18_tax_occur_ss49975_no_cero_rank)]
+
+p1<-ggplot(tb18_tax_occur_ss49975_no_cero_rank, aes(x=rank,y=V1))+
+  geom_point(aes(x=rank,y=V1))+
+  scale_y_log10(name="abundance (log scale)")+
+  labs(title="TP 18S rank abundance curve")+
+  theme_bw()+
+  labs(colour = "") 
+p1
+```
+
+
+
+#### 1.3.4.1) Rank-Abundance or Dominance/Diversity Model ("radfit")
+
+The OTUs abundance distribution fits relativelly close to log-normal model. 
+
+```{r radfit_v2, echo=FALSE}
+#?radfit
+#otu_tb18_t[1:5,1:5]
+
+tb18_tax_occur_min49975_radfit<-radfit(colSums(tb18_tax_occur_min49975_t))
+plot(tb18_tax_occur_min49975_radfit)
+```
+
+#### 1.3.4.2) Preston's Log-normal Model
+
+According to Preston's lognormal model fitted into groups of species' frequencies, we're missing 1588.816 species:
+'
+```{r preston_model1_v2, echo=F}
+tb18_tax_occur_ss49975_prestonfit<-prestonfit(colSums(tb18_tax_occur_min49975_t))
+plot(tb18_tax_occur_ss49975_prestonfit, main="TP 18S fit to Preston log-normal model \n(pooled species)")
+
+veiledspec(tb18_tax_occur_ss49975_prestonfit)
+```
+
+\
+When computing Prestons' lognormal model fit without pooling data into groups, we miss 1385.371 species:
+'
+```{r preston_model2_v2, echo=4}
+tb18_tax_occur_ss49975_dist_all<-prestondistr(colSums(tb18_tax_occur_min49975_t))
+plot(tb18_tax_occur_ss49975_prestonfit, main="TP 18S fit to Preston log-normal model \n(red: pooled; blue: non-pooled)")
+lines(tb18_tax_occur_ss49975_dist_all, line.col="blue3")
+
+veiledspec(tb18_tax_occur_ss49975_dist_all)
+```
+
+
+### 1.3.5) Rarefaction curves of rarefied and non-rarefied datasets
+
+```{r rarefraction_curve_v2, echo=FALSE}
+rarec_input<-t(as.matrix(colSums(tb18_tax_occur_ss49975_no_cero)))
+
+#tb18_rarecurve_step1000_10000<-rarecurve(rarec_input, step = 1000, 10000, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity step=1000 & ss=10000\n(40,816 OTUs; 5,247,375 reads)\n")
+#tb18_rarecurve_step1000_10000
+
+#########tb18_rarecurve_step1000_ss49975<-rarecurve(rarec_input, step = 100, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity, step=100 \n(5,719 OTUs; 49,622 reads)\n")
+
+
+#without rarefying
+#######rarec_allOTUs_input<-t(as.matrix(colSums(t(tb18_tax_occur))))
+#######tb18_rarecurve_allOTUs_step1000_ss8642<-rarecurve(rarec_allOTUs_input, step = 100, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity non-rarefied, step=100 \n(8,642 OTUs; 244,184 reads)\n")
+```
+
+
+### 1.3.6) Beta diversity
+
+#### 1.3.6.1) Dissimilarity matrix using Bray-Curtis index:
+
+The Bray-Curtis dissimilarity, constrained between 0 (minimum distance) and 1 (highest dissimilarity) allows us to quantify the differences between samples according to the composition and the relative abundance of their OTUs. In our dataset, most of the samples pairs take dissimilarity values around 0.8, meaning that their composition is substantially different.
+
+```{r beta_div1_v2, echo=FALSE}
+#?vegdist
+tb18_tax_occur_ss49975_no_cero.bray<-vegdist(tb18_tax_occur_ss49975_no_cero, method="bray")
+boxplot(tb18_tax_occur_ss49975_no_cero.bray, main="Bray-Curtis dissimilarity matrix")
+```
+
+#### 1.3.6.2) Hierarchical clustering
+
+The stations seem to form clusters according to geographic localization, but there are no evident clusters separated from the general groups, apart from the one containing TARA_84, TARA_82 and TARA_85.
+
+(To be done: assign Longhurst provinces information to each station and check if any of the central clusters is meaningful regarding to the samples' geographical location)
+
+```{r beta_div2_v2, echo=FALSE, results="hide"}
+#UPGMA
+tb18_tax_occur_ss49975_no_cero.upgma<-hclust(tb18_tax_occur_ss49975_no_cero.bray, "average")
+plot(tb18_tax_occur_ss49975_no_cero.upgma, cex=.35, main="Samples Hierarchical Clustering")
+```
+
+
+```{r hclust_coloured_v2, echo=FALSE}
+#we'll repeat the UPGMA with the Longhurst codes added in the stations name
+#longhurst<-read.table("input/TP_longhurst_provinces_merged.txt",header=F,sep="\t")
+#row.names(longhurst)<-longhurst$V1
+#tb18_tax_occur_ss49975_no_cero_dend<-merge(tb18_tax_occur_ss49975_no_cero, longhurst, by="row.names", all.x=TRUE)
+#row.names(tb18_tax_occur_ss49975_no_cero_dend)<-tb18_tax_occur_ss49975_no_cero_dend$V3
+#tb18_tax_occur_ss49975_no_cero_dend<-tb18_tax_occur_ss49975_no_cero_dend[ , -which(names(tb18_tax_occur_ss49975_no_cero_dend) %in% c("Row.names","V1","V2","V3"))]
+
+#tb18_tax_occur_ss49975_no_cero_dend.bray<-vegdist(tb18_tax_occur_ss49975_no_cero_dend, method="bray")
+#tb18_tax_occur_ss49975_no_cero_dend.upgma<-hclust(tb18_tax_occur_ss49975_no_cero_dend.bray, "average")
+#plot(tb18_tax_occur_ss49975_no_cero_dend.upgma, cex=.35, main="Samples Hierarchical Clustering")
+```
+
+
+
+#### 1.3.6.3) Non-metric multidimensional scaling
+
+We can identify a prominent group in the central part of the NMDS plot and a few outliers (TARA 82, 84 and 85) in the central-right edge of the plot. The stress parameter takes a value below 0.2, suggesting that the plot is acceptable. 
+
+```{r monoNMDS_v2, echo=F}
+#NMDS
+tb18_tax_occur_ss49975_no_cero.nmds<-monoMDS(tb18_tax_occur_ss49975_no_cero.bray)
+tb18_tax_occur_ss49975_no_cero.nmds
+plot(tb18_tax_occur_ss49975_no_cero.nmds, main="monoMDs method")
+```
+
+
+```{r metaNMDS_v2, echo=F, results="hide", warning=F}
+#When implementing a most robut function for computing NMDS plots, the result is quiet the same:
+
+tb18_tax_occur_ss49975_no_cero.meta_nmds<-metaMDS(tb18_tax_occur_ss49975_no_cero.bray)
+plot(tb18_tax_occur_ss49975_no_cero.meta_nmds, main="metaMDS method")
+```
+
+
+
+
 
 ## 1.4) Geographical analysis
 
-```{r load_geo_data, echo=F, results="hide", message=F}
+```{r load_geo_data_v2, echo=F, results="hide", message=F}
 #load geographical ubication of stations and sort according to otu_tb18 stations sequence.
 MP_geo_18S<-read.table(file="~/Documents/TFM2/data/MALASPINA/geo/mp_surface_ubication_modif.txt", sep="\t", header=T)
 
@@ -376,27 +604,27 @@ Working datasets:
 
 1) Community matrix: tb18_tax_occur_ss49975_no_cero
 
-```{r working_datasets1, echo=T}
+```{r working_datasets1_v2, echo=T}
 dim(tb18_tax_occur_ss49975_no_cero)
 tb18_tax_occur_ss49975_no_cero[1:5, 1:5]
 ```
 
 2) Community Bray-Curtis: tb18_tax_occur_ss49975_no_cero.bray
 
-```{r working_datasets2, echo=2}
+```{r working_datasets2_v2, echo=2}
 tb18_tax_occur_ss49975_no_cero.bray<-as.matrix(tb18_tax_occur_ss49975_no_cero.bray)
 dim(tb18_tax_occur_ss49975_no_cero.bray)
 ```
 
 3) Stations distances in km: geo_distances_MP_18S
 
-```{r working_datasets3, echo=T}
+```{r working_datasets3_v2, echo=T}
 dim(geo_distances_MP_18S)
 ```
 
 Communities quickly change their composition across geographical distances:
 
-```{r working_datasets4, echo=T}
+```{r working_datasets4_v2, echo=T}
 plot(geo_distances_MP_18S, tb18_tax_occur_ss49975_no_cero.bray, pch=19, cex=0.4, xlab="Geopgraphical distances", ylab="Bray-Curtis dissimilarities")
 ```
 
@@ -404,25 +632,25 @@ plot(geo_distances_MP_18S, tb18_tax_occur_ss49975_no_cero.bray, pch=19, cex=0.4,
 
 Mantel statistic is -significantlly- so low, meaning that the correlation between samples dissimilarity and geographical distances is weak.
 
-```{r mantel_correlogram1, echo=T}
+```{r mantel_correlogram1_v2, echo=T}
 mantel(geo_distances_MP_18S, tb18_tax_occur_ss49975_no_cero.bray)
 ```
 
 Maximum distance between samples:
 
-```{r mantel_correlogram2, echo=F}
+```{r mantel_correlogram2_v2, echo=F}
 max(geo_distances_MP_18S)
 ```
 
 Minimum distance between samples:
 
-```{r mantel_correlogram3, echo=F}
+```{r mantel_correlogram3_v2, echo=F}
 min(geo_distances_MP_18S)
 ```
 
 Correlograms:
 
-```{r mantel_correlogram4, echo=T}
+```{r mantel_correlogram4_v2, echo=T}
 MP_18s_ss49975_mantel_correl_by_1000km<-mantel.correlog(tb18_tax_occur_ss49975_no_cero.bray, D.geo=geo_distances_MP_18S, break.pts=seq(0,20000, by=1000))
 plot(MP_18s_ss49975_mantel_correl_by_1000km)
 
@@ -432,7 +660,7 @@ plot(MP_18s_ss49975_mantel_correl_by_100km)
 
 ## 1.5) Abundance vs. occurence
 
-```{r OTUs_mean_relative_abund, echo=F, results="hide"}
+```{r OTUs_mean_relative_abund_v2, echo=F, results="hide"}
 tb18_tax_occur_ss49975_no_cero[1:5,1:5]
 tb18_tax_occur_ss49975_no_cero_t<-t(tb18_tax_occur_ss49975_no_cero)
 
@@ -451,18 +679,18 @@ tb18_tax_occur_ss49975_no_cero_t.rabund_means<-as.data.frame(tb18_tax_occur_ss49
 head(tb18_tax_occur_ss49975_no_cero_t.rabund_means)
 ```
 
-```{r OTUs_occurence, echo=F, results='hide'}
+```{r OTUs_occurence_v2, echo=F, results='hide'}
 tb18_tax_occur_ss49975_no_cero_t.rabund.occur<-tb18_tax_occur_ss49975_no_cero_t.rabund
 tb18_tax_occur_ss49975_no_cero_t.rabund.occur[tb18_tax_occur_ss49975_no_cero_t.rabund.occur>0]<-1
 tb18_tax_occur_ss49975_no_cero_t.rabund.occur[1:5,1:5] # presence - absence table
 
 #percentage of occurence in overall stations
-tb18_tax_occur_ss49975_no_cero_t.rabund_means.occurence_perc<-as.data.frame(100*(rowSums(tb18_tax_occur_ss49975_no_cero_t.rabund.occur)/92))
+tb18_tax_occur_ss49975_no_cero_t.rabund_means.occurence_perc<-as.data.frame(100*(rowSums(tb18_tax_occur_ss49975_no_cero_t.rabund.occur)/91))
 
 str(tb18_tax_occur_ss49975_no_cero_t.rabund_means.occurence_perc)
 ```
 
-```{r merge_rabund_peroccur, echo=F, results='hide'}
+```{r merge_rabund_peroccur_v2, echo=F, results='hide'}
 otu_tb18_ss49975_rabund_percoccur<-merge(tb18_tax_occur_ss49975_no_cero_t.rabund_means,tb18_tax_occur_ss49975_no_cero_t.rabund_means.occurence_perc, by="row.names")
 
 colnames(otu_tb18_ss49975_rabund_percoccur)<-c("OTUs","mean_rabund","perc_occur")
@@ -475,7 +703,7 @@ otu_tb18_ss49975_rabund_percoccur[1:5,]
 
 In the following plot, we can appreciate the OTUs distribution according to their percentage of occurence and relative abundance. The red line keeps up OTUs that occur in more than 80% of the samples, the green line limits regionally rare OTUs (< 0.001%), and the blue one restricts regionally abundant OTUs (> 0.1%).
 
-```{r abund_vs_occurence_table, echo=F}
+```{r abund_vs_occurence_table_v2, echo=F}
 plot(otu_tb18_ss49975_rabund_percoccur$mean_rabund,otu_tb18_ss49975_rabund_percoccur$perc_occur, log="x", pch=19, cex=0.8, xlab="Mean relative abundance", ylab="Percentage of occurence")
 abline(h=80, col="red") #occurence higher than 80%
 abline(v=0.00001, col="green") #rare OTUs
@@ -488,7 +716,7 @@ abline(v=0.001, col="blue") #cosmopolitan OTUs
 
 Regionally abundant OTUs (relative abundance over 0.1%):
 
-```{r abundant_OTUs, echo=7}
+```{r abundant_OTUs_v2, echo=7}
 #regionally abundant
 tb18_ss49975_abundant<-otu_tb18_ss49975_rabund_percoccur[otu_tb18_ss49975_rabund_percoccur$mean_rabund > 0.001,]
 
@@ -506,13 +734,13 @@ dim(tb18_ss49975_abundant_sorted_prov)
 
 Proportion of regionally abundant OTUs (%):
 
-```{r abundant_OTUs2, echo=F}
+```{r abundant_OTUs2_v2, echo=F}
 (nrow(tb18_ss49975_abundant_sorted)/nrow(otu_tb18_ss49975_rabund_percoccur))*100
 ```
 
 Cosmopolitan OTUs (relative abundance over 0.1% and occurence in more than 80% of samples):
 
-```{r select_cosmopolitan, echo=6}
+```{r select_cosmopolitan_v2, echo=6}
 otu_tb18_ss49975_rabund_cosm<-otu_tb18_ss49975_rabund_percoccur[otu_tb18_ss49975_rabund_percoccur$mean_rabund > 0.001,]
 otu_tb18_ss49975_rabund_poccur_cosm<-otu_tb18_ss49975_rabund_cosm[otu_tb18_ss49975_rabund_cosm$perc_occur > 80,]
 otu_tb18_ss49975_cosmop_sorted<-otu_tb18_ss49975_rabund_poccur_cosm[order(otu_tb18_ss49975_rabund_poccur_cosm$perc_occur, otu_tb18_ss49975_rabund_poccur_cosm$mean_rabund, decreasing = T), c(1,2)]
@@ -526,7 +754,7 @@ dim(otu_tb18_ss49975_cosmop_sorted_prov)
 
 Number and proportion (%) of cosmopolitan OTUs:
 
-```{r percentage_cosmopolitan, echo=F}
+```{r percentage_cosmopolitan_v2, echo=F}
 nrow(otu_tb18_ss49975_cosmop_sorted)
 
 (nrow(otu_tb18_ss49975_cosmop_sorted)/nrow(otu_tb18_ss49975_rabund_percoccur))*100
@@ -534,7 +762,7 @@ nrow(otu_tb18_ss49975_cosmop_sorted)
 
 Number and proportion (%) of rare OTUs:
 
-```{r rare_OTUs, echo=1}
+```{r rare_OTUs_v2, echo=1}
 nrow(otu_tb18_ss49975_rabund_percoccur[otu_tb18_ss49975_rabund_percoccur$mean_rabund < 0.00001 & otu_tb18_ss49975_rabund_percoccur$mean_rabund >0,])
 
 (nrow(otu_tb18_ss49975_rabund_percoccur[otu_tb18_ss49975_rabund_percoccur$mean_rabund < 0.00001 & otu_tb18_ss49975_rabund_percoccur$mean_rabund >0,])/nrow(otu_tb18_ss49975_rabund_percoccur))*100
@@ -542,6 +770,1261 @@ nrow(otu_tb18_ss49975_rabund_percoccur[otu_tb18_ss49975_rabund_percoccur$mean_ra
 
 
 
+
+## 1.6) Taxonomic composition analysis
+
+### 1.6.1) Normalized data
+
+\
+**PHOTOTROPHS + HETEROTROPHS**
+
+
+```{r merge_tables_v2, echo=FALSE, results="hide", warning=FALSE}
+#Let's add the taxonomic classification by merging "tb18_tax_occur_ss49975_no_cero" with "tb18_tax":
+
+tb18_tax_occur_ss49975_no_cero_t<-t(tb18_tax_occur_ss49975_no_cero)
+tb18_ss49975_tax<-merge(tb18_tax_occur_ss49975_no_cero_t,tb18_class, by="row.names", all.x=T)
+
+dim(tb18_ss49975_tax)
+tb18_ss49975_tax[1:5,1:5]
+
+#fix OTU_no as new row
+rownames(tb18_ss49975_tax)=tb18_ss49975_tax$Row.names
+#add OTU_no as rowname
+rownames.tb18_ss49975_tax<-tb18_ss49975_tax[,1]
+tb18_ss49975_tax<-tb18_ss49975_tax[,-1]
+
+dim(tb18_ss49975_tax)
+tb18_ss49975_tax[1:5, 1:5]
+
+#sort by OTU_no (split rowname, introduce no. into column "OTU_no" and sort)
+tb18_ss49975_tax["OTU_no"] <- NA
+tb18_ss49975_tax$OTU_no <- sapply(strsplit(rownames(tb18_ss49975_tax),split= "\\_"),'[',2)
+tb18_ss49975_tax$OTU_no <- as.numeric(as.character(tb18_ss49975_tax$OTU_no))
+tb18_ss49975_tax_sorted<-tb18_ss49975_tax[order(tb18_ss49975_tax$OTU_no, decreasing = FALSE), ]
+```
+
+No. of OTUs and reads of the rearefied dataset:
+
+```{r dim_merge1_v2, echo=F}
+nrow(tb18_ss49975_tax_sorted)
+sum(colSums(tb18_ss49975_tax_sorted[,1:91]))
+
+#dim(tb18_ss49975_tax_sorted)
+#tb18_ss49975_tax_sorted[1:5,1:5]
+```
+
+\
+Number and proportion (%) of OTUs of phototrophic groups:
+
+```{r dim_merge2_v2, echo=F}
+#selection of phototrophs:
+tb18_phototrophs <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif != "NA"),]
+
+nrow(tb18_phototrophs)
+nrow(tb18_phototrophs)*100/nrow(tb18_ss49975_tax_sorted)
+```
+
+Number and proportion (%) of reads of phototrophic groups:
+
+```{r dim_merge2.2_v2, echo=F}
+sum(colSums(tb18_phototrophs[,1:91]))
+(sum(colSums(tb18_phototrophs[,1:91])))*100/sum(colSums(tb18_ss49975_tax_sorted[,1:91]))
+
+#dim(tb18_phototrophs)
+#tb18_phototrophs[1:5,1:5]
+```
+
+\
+Number and proportion (%) of OTUs of non-phototrophic groups:
+
+```{r dim_merge3_v2, echo=F}
+#translate "NA" to "Heterotrophs":
+tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif<-as.character(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif)
+tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif[which(is.na(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif))]<-"Heterotrophs"
+
+#selection of non.phototrophs:
+tb18_non.phototrophs <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Heterotrophs"),]
+
+nrow(tb18_non.phototrophs)
+(nrow(tb18_non.phototrophs))*100/nrow(tb18_ss49975_tax_sorted)
+```
+
+Number and proportion (%) of reads of non-phototrophic groups:
+
+```{r dim_merge3.2_v2, echo=F}
+sum(colSums(tb18_non.phototrophs[,1:91]))
+(sum(colSums(tb18_non.phototrophs[,1:91])))*100/sum(colSums(tb18_ss49975_tax_sorted[,1:91]))
+```
+
+
+\
+**Absolute values**
+
+
+```{r count_samples_per_group_Heterotrophs_v2, echo=F, warning=FALSE, results="hide"}
+occurrence_counts_phototrophs<-data.table()
+
+#create a table per group and count in how many samples they occur. 
+Dinophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Dinophyceae"),]
+Dinophyceae_tb_occur <- Dinophyceae_tb[,1:91]
+Dinophyceae_tb_occur_len<-length(Dinophyceae_tb_occur[,colSums(Dinophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Dinophyceae",samples_per_class=Dinophyceae_tb_occur_len))
+
+Prasinophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "other_Prasinophyceae"),]
+Prasinophyceae_tb_occur <- Prasinophyceae_tb[,1:91]
+Prasinophyceae_tb_occur_len<-length(Prasinophyceae_tb_occur[,colSums(Prasinophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="other_Prasinophyceae",samples_per_class=Prasinophyceae_tb_occur_len))
+
+Chrysophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Chrysophyceae"),]
+Chrysophyceae_tb_occur <- Chrysophyceae_tb[,1:91]
+Chrysophyceae_tb_occur_len<-length(Chrysophyceae_tb_occur[,colSums(Chrysophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chrysophyceae",samples_per_class=Chrysophyceae_tb_occur_len))
+
+Pelagophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Pelagophyceae"),]
+Pelagophyceae_tb_occur <- Pelagophyceae_tb[,1:91]
+Pelagophyceae_tb_occur_len<-length(Pelagophyceae_tb_occur[,colSums(Pelagophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pelagophyceae",samples_per_class=Pelagophyceae_tb_occur_len))
+
+Dictyochophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Dictyochophyceae"),]
+Dictyochophyceae_tb_occur <- Dictyochophyceae_tb[,1:91]
+Dictyochophyceae_tb_occur_len<-length(Dictyochophyceae_tb_occur[,colSums(Dictyochophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Dictyochophyceae",samples_per_class=Dictyochophyceae_tb_occur_len))
+
+Cryptophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Cryptophyceae"),]
+Cryptophyceae_tb_occur <- Cryptophyceae_tb[,1:91]
+Cryptophyceae_tb_occur_len<-length(Cryptophyceae_tb_occur[,colSums(Cryptophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Cryptophyceae",samples_per_class=Cryptophyceae_tb_occur_len))
+
+Bacillariophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Bacillariophyceae"),]
+Bacillariophyceae_tb_occur <- Bacillariophyceae_tb[,1:91]
+Bacillariophyceae_tb_occur_len<-length(Bacillariophyceae_tb_occur[,colSums(Bacillariophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Bacillariophyceae",samples_per_class=Bacillariophyceae_tb_occur_len))
+
+Chlorarachniophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Chlorarachniophyceae"),]
+Chlorarachniophyceae_tb_occur <- Chlorarachniophyceae_tb[,1:91]
+Chlorarachniophyceae_tb_occur_len<-length(Chlorarachniophyceae_tb_occur[,colSums(Chlorarachniophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorarachniophyceae",samples_per_class=Chlorarachniophyceae_tb_occur_len))
+
+Bolidophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Bolidophyceae"),]
+Bolidophyceae_tb_occur <- Bolidophyceae_tb[,1:91]
+Bolidophyceae_tb_occur_len<-length(Bolidophyceae_tb_occur[,colSums(Bolidophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Bolidophyceae",samples_per_class=Bolidophyceae_tb_occur_len))
+
+Pinguiophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Pinguiophyceae"),]
+Pinguiophyceae_tb_occur <- Pinguiophyceae_tb[,1:91]
+Pinguiophyceae_tb_occur_len<-length(Pinguiophyceae_tb_occur[,colSums(Pinguiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pinguiophyceae",samples_per_class=Pinguiophyceae_tb_occur_len))
+
+Prymnesiophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Prymnesiophyceae"),]
+Prymnesiophyceae_tb_occur <- Prymnesiophyceae_tb[,1:91]
+Prymnesiophyceae_tb_occur_len<-length(Prymnesiophyceae_tb_occur[,colSums(Prymnesiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prymnesiophyceae",samples_per_class=Prymnesiophyceae_tb_occur_len))
+
+Mamiellophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Mamiellophyceae"),]
+Mamiellophyceae_tb_occur <- Mamiellophyceae_tb[,1:91]
+Mamiellophyceae_tb_occur_len<-length(Mamiellophyceae_tb_occur[,colSums(Mamiellophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Mamiellophyceae",samples_per_class=Mamiellophyceae_tb_occur_len))
+
+Eustigmatophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Eustigmatophyceae"),]
+Eustigmatophyceae_tb_occur <- Eustigmatophyceae_tb[,1:91]
+Eustigmatophyceae_tb_occur_len<-length(Eustigmatophyceae_tb_occur[,colSums(Eustigmatophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Eustigmatophyceae",samples_per_class=Eustigmatophyceae_tb_occur_len))
+
+Chlorophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Chlorophyceae"),]
+Chlorophyceae_tb_occur <- Chlorophyceae_tb[,1:91]
+Chlorophyceae_tb_occur_len<-length(Chlorophyceae_tb_occur[,colSums(Chlorophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorophyceae",samples_per_class=Chlorophyceae_tb_occur_len))
+
+Ulvophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Ulvophyceae"),]
+Ulvophyceae_tb_occur <- Ulvophyceae_tb[,1:91]
+Ulvophyceae_tb_occur_len<-length(Ulvophyceae_tb_occur[,colSums(Ulvophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Ulvophyceae",samples_per_class=Ulvophyceae_tb_occur_len))
+
+Raphydophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Raphydophyceae"),]
+Raphydophyceae_tb_occur <- Raphydophyceae_tb[,1:91]
+Raphydophyceae_tb_occur_len<-length(Raphydophyceae_tb_occur[,colSums(Raphydophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Raphydophyceae",samples_per_class=Raphydophyceae_tb_occur_len))
+
+Trebouxiophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Trebouxiophyceae"),]
+Trebouxiophyceae_tb_occur <- Trebouxiophyceae_tb[,1:91]
+Trebouxiophyceae_tb_occur_len<-length(Trebouxiophyceae_tb_occur[,colSums(Trebouxiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Trebouxiophyceae",samples_per_class=Trebouxiophyceae_tb_occur_len))
+
+Phaeophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Phaeophyceae"),]
+Phaeophyceae_tb_occur <- Phaeophyceae_tb[,1:91]
+Phaeophyceae_tb_occur_len<-length(Phaeophyceae_tb_occur[,colSums(Phaeophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Phaeophyceae",samples_per_class=Phaeophyceae_tb_occur_len))
+
+Phaeothamniophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Phaeothamniophyceae"),]
+Phaeothamniophyceae_tb_occur <- Phaeothamniophyceae_tb[,1:91]
+Phaeothamniophyceae_tb_occur_len<-length(Phaeothamniophyceae_tb_occur[,colSums(Phaeothamniophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Phaeothamniophyceae",samples_per_class=Phaeothamniophyceae_tb_occur_len))
+
+Xanthophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Xanthophyceae"),]
+Xanthophyceae_tb_occur <- Xanthophyceae_tb[,1:91]
+Xanthophyceae_tb_occur_len<-length(Xanthophyceae_tb_occur[,colSums(Xanthophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Xanthophyceae",samples_per_class=Xanthophyceae_tb_occur_len))
+
+Chlorodendrophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Chlorodendrophyceae"),]
+Chlorodendrophyceae_tb_occur <- Chlorodendrophyceae_tb[,1:91]
+Chlorodendrophyceae_tb_occur_len<-length(Chlorodendrophyceae_tb_occur[,colSums(Chlorodendrophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorodendrophyceae",samples_per_class=Chlorodendrophyceae_tb_occur_len))
+
+IncertaeSedis_Archaeplastida_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "IncertaeSedis_Archaeplastida"),]
+IncertaeSedis_Archaeplastida_tb_occur <- IncertaeSedis_Archaeplastida_tb[,1:91]
+IncertaeSedis_Archaeplastida_tb_occur_len<-length(IncertaeSedis_Archaeplastida_tb_occur[,colSums(IncertaeSedis_Archaeplastida_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="IncertaeSedis_Archaeplastida",samples_per_class=IncertaeSedis_Archaeplastida_tb_occur_len))
+
+Nephroselmidophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Nephroselmidophyceae"),]
+Nephroselmidophyceae_tb_occur <- Nephroselmidophyceae_tb[,1:91]
+Nephroselmidophyceae_tb_occur_len<-length(Nephroselmidophyceae_tb_occur[,colSums(Nephroselmidophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Nephroselmidophyceae",samples_per_class=Nephroselmidophyceae_tb_occur_len))
+
+Pavlovophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Pavlovophyceae"),]
+Pavlovophyceae_tb_occur <- Pavlovophyceae_tb[,1:91]
+Pavlovophyceae_tb_occur_len<-length(Pavlovophyceae_tb_occur[,colSums(Pavlovophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pavlovophyceae",samples_per_class=Pavlovophyceae_tb_occur_len))
+
+Rhodophyceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Rhodophyceae"),]
+Rhodophyceae_tb_occur <- Rhodophyceae_tb[,1:91]
+Rhodophyceae_tb_occur_len<-length(Rhodophyceae_tb_occur[,colSums(Rhodophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Rhodophyceae",samples_per_class=Rhodophyceae_tb_occur_len))
+
+Rappemonads_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Rappemonads"),]
+Rappemonads_tb_occur <- Rappemonads_tb[,1:91]
+Rappemonads_tb_occur_len<-length(Rappemonads_tb_occur[,colSums(Rappemonads_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Rappemonads",samples_per_class=Rappemonads_tb_occur_len))
+
+MOCH_1_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "MOCH_1"),]
+MOCH_1_tb_occur <- MOCH_1_tb[,1:91]
+MOCH_1_tb_occur_len<-length(MOCH_1_tb_occur[,colSums(MOCH_1_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_1",samples_per_class=MOCH_1_tb_occur_len))
+
+MOCH_2_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "MOCH_2"),]
+MOCH_2_tb_occur <- MOCH_2_tb[,1:91]
+MOCH_2_tb_occur_len<-length(MOCH_2_tb_occur[,colSums(MOCH_2_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_2",samples_per_class=MOCH_2_tb_occur_len))
+
+MOCH_5_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "MOCH_5"),]
+MOCH_5_tb_occur <- MOCH_5_tb[,1:91]
+MOCH_5_tb_occur_len<-length(MOCH_5_tb_occur[,colSums(MOCH_5_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_5",samples_per_class=MOCH_5_tb_occur_len))
+
+Prasinophyceae_clade_VII_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae_clade-VII"),]
+Prasinophyceae_clade_VII_tb_occur <- Prasinophyceae_clade_VII_tb[,1:91]
+Prasinophyceae_clade_VII_tb_occur_len<-length(Prasinophyceae_clade_VII_tb_occur[,colSums(Prasinophyceae_clade_VII_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prasinophyceae_clade-VII",samples_per_class=Prasinophyceae_clade_VII_tb_occur_len))
+
+Prasinophyceae_clade_IX_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae_clade-IX"),]
+Prasinophyceae_clade_IX_tb_occur <- Prasinophyceae_clade_IX_tb[,1:91]
+Prasinophyceae_clade_IX_tb_occur_len<-length(Prasinophyceae_clade_IX_tb_occur[,colSums(Prasinophyceae_clade_IX_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prasinophyceae_clade-IX",samples_per_class=Prasinophyceae_clade_IX_tb_occur_len))
+
+Pyramimonadaceae_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Pyramimonadaceae"),]
+Pyramimonadaceae_tb_occur <- Pyramimonadaceae_tb[,1:91]
+Pyramimonadaceae_tb_occur_len<-length(Pyramimonadaceae_tb_occur[,colSums(Pyramimonadaceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pyramimonadaceae",samples_per_class=Pyramimonadaceae_tb_occur_len))
+
+Heterotrophs_tb <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Heterotrophs"),]
+Heterotrophs_tb_occur <- Heterotrophs_tb[,1:91]
+Heterotrophs_tb_occur_len<-length(Heterotrophs_tb_occur[,colSums(Heterotrophs_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Heterotrophs",samples_per_class=Heterotrophs_tb_occur_len))
+
+occurrence_counts_phototrophs
+#row.names(occurrence_counts_phototrophs)<-occurrence_counts_phototrophs$group
+occurrence_counts_phototrophs<-as.data.frame(occurrence_counts_phototrophs)
+```
+
+```{r aggregate_Heterotrophs_v2, echo=FALSE, results="hide", warning=FALSE}
+class_summary_reads_per_class<-aggregate(rowSums(tb18_ss49975_tax_sorted[1:91]), list(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif), sum)
+# count the different groups
+
+class_summary_otus_per_class<-aggregate(rowSums(tb18_ss49975_tax_sorted[1:91]), list(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif), length)
+
+## READS PER CLASS ##
+attach(class_summary_reads_per_class)
+class_summary_reads_per_class_order<-class_summary_reads_per_class[order(-x),]
+detach(class_summary_reads_per_class)
+class_summary_reads_per_class_order
+
+#fix column names
+row.names(class_summary_reads_per_class_order)<-class_summary_reads_per_class_order[,1]
+class_summary_reads_per_class_order<-class_summary_reads_per_class_order[c(-1)]
+colnames(class_summary_reads_per_class_order)<-c("reads_per_class")
+
+## OTUs PER CLASS ##
+attach(class_summary_otus_per_class)
+class_summary_otus_per_class_order<-class_summary_otus_per_class[order(-x),]
+detach(class_summary_otus_per_class)
+class_summary_otus_per_class_order
+
+row.names(class_summary_otus_per_class_order)<-class_summary_otus_per_class_order[,1]
+class_summary_otus_per_class_order<-class_summary_otus_per_class_order[c(-1)]
+colnames(class_summary_otus_per_class_order)<-c("OTUs_per_class")
+
+#class_summary_reads<-aggregate(sum~class, data=otutab_full_wTax, FUN="sum") 
+# sum reads different groups
+```
+
+```{r create_table_merging_#OTUs_#reads_#samples_Heterotrophs_v2, echo=FALSE, warning=F}
+tb18S_OTUs_reads_samples <- merge(class_summary_reads_per_class_order, class_summary_otus_per_class_order, by="row.names")
+
+row.names(tb18S_OTUs_reads_samples)<-tb18S_OTUs_reads_samples[,1]
+
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[,-1]
+colnames(tb18S_OTUs_reads_samples)<-c("reads_per_class","OTUs_per_class")
+#tb18S_OTUs_reads_samples[1:5,1:2]
+
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[order(tb18S_OTUs_reads_samples$reads_per_class, tb18S_OTUs_reads_samples$OTUs_per_class, decreasing = T), c(1,2)]
+
+#add no. of samples per class
+tb18S_OTUs_reads_samples<-merge(tb18S_OTUs_reads_samples, occurrence_counts_phototrophs, by.x="row.names", by.y="group", all.x=TRUE)
+
+row.names(tb18S_OTUs_reads_samples)<-tb18S_OTUs_reads_samples[,1]
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[,-1]
+tb18S_OTUs_reads_samples
+```
+
+
+\
+**Relative values**
+
+```{r OTUs_vs_reads_relative_values_18S_Heterotrophs_v2, echo=FALSE, warning=F}
+
+tb18S_OTUs_reads_samples_rel_abund <- tb18S_OTUs_reads_samples
+
+tb18S_OTUs_reads_samples_rel_abund$reads_per_class<-(tb18S_OTUs_reads_samples_rel_abund$reads_per_class*100)/colSums(tb18S_OTUs_reads_samples)[1]
+tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class<-(tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class*100)/colSums(tb18S_OTUs_reads_samples)[2]
+tb18S_OTUs_reads_samples_rel_abund$samples_per_class<-(tb18S_OTUs_reads_samples_rel_abund$samples_per_class*100)/91
+
+colSums(tb18S_OTUs_reads_samples_rel_abund)
+tb18S_OTUs_reads_samples_rel_abund
+```
+
+\
+\
+
+Reads per class vs. OTUs per class:
+
+```{r OTUs_vs_reads_18S_v2_Heterotrophs_v2, echo=FALSE, warnings=F, warning=F}
+ggplot(tb18S_OTUs_reads_samples_rel_abund) +
+  geom_point(aes(OTUs_per_class, reads_per_class)) +
+  geom_text_repel(aes(OTUs_per_class, reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 3, box.padding = unit(0.1, "lines"), point.padding = unit(0.02, 'lines')) + labs(title="[1] Reads per class vs. OTUs per class", x="\nTP-miTags-18S OTUs (%)", y="TP-miTags-18S reads (%)\n") + scale_x_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100))  + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+```
+
+\
+\
+
+Reads per class vs. samples in which they occurr:
+
+```{r reads_vs_samples_18S_Heterotrophs_v2, echo=FALSE, warning=F}
+ggplot(tb18S_OTUs_reads_samples_rel_abund) +
+  geom_point(aes(samples_per_class,reads_per_class)) +
+  geom_text_repel(aes(samples_per_class,reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 8, box.padding = unit(0.1, "lines"), point.padding = unit(0.2, 'lines')) + scale_x_continuous(limits = c(0, 116), breaks=c(25,50,75,100)) + labs(title="[2] Reads per class vs. samples in which they occur", x="\nTP-miTags-18S samples (%)", y="TP-miTags-18S reads (%)\n") + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+```
+
+\
+**PHOTOTROPHS**
+
+```{r count_samples_per_group_v2, echo=F, warning=FALSE, results="hide"}
+occurrence_counts_phototrophs<-data.table()
+
+#create a table per group and count in how many samples they occur. 
+Dinophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Dinophyceae"),]
+Dinophyceae_tb_occur <- Dinophyceae_tb[,1:91]
+Dinophyceae_tb_occur_len<-length(Dinophyceae_tb_occur[,colSums(Dinophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Dinophyceae",samples_per_class=Dinophyceae_tb_occur_len))
+
+Prasinophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "other_Prasinophyceae"),]
+Prasinophyceae_tb_occur <- Prasinophyceae_tb[,1:91]
+Prasinophyceae_tb_occur_len<-length(Prasinophyceae_tb_occur[,colSums(Prasinophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="other_Prasinophyceae",samples_per_class=Prasinophyceae_tb_occur_len))
+
+Chrysophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Chrysophyceae"),]
+Chrysophyceae_tb_occur <- Chrysophyceae_tb[,1:91]
+Chrysophyceae_tb_occur_len<-length(Chrysophyceae_tb_occur[,colSums(Chrysophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chrysophyceae",samples_per_class=Chrysophyceae_tb_occur_len))
+
+Pelagophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Pelagophyceae"),]
+Pelagophyceae_tb_occur <- Pelagophyceae_tb[,1:91]
+Pelagophyceae_tb_occur_len<-length(Pelagophyceae_tb_occur[,colSums(Pelagophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pelagophyceae",samples_per_class=Pelagophyceae_tb_occur_len))
+
+Dictyochophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Dictyochophyceae"),]
+Dictyochophyceae_tb_occur <- Dictyochophyceae_tb[,1:91]
+Dictyochophyceae_tb_occur_len<-length(Dictyochophyceae_tb_occur[,colSums(Dictyochophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Dictyochophyceae",samples_per_class=Dictyochophyceae_tb_occur_len))
+
+Cryptophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Cryptophyceae"),]
+Cryptophyceae_tb_occur <- Cryptophyceae_tb[,1:91]
+Cryptophyceae_tb_occur_len<-length(Cryptophyceae_tb_occur[,colSums(Cryptophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Cryptophyceae",samples_per_class=Cryptophyceae_tb_occur_len))
+
+Bacillariophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Bacillariophyceae"),]
+Bacillariophyceae_tb_occur <- Bacillariophyceae_tb[,1:91]
+Bacillariophyceae_tb_occur_len<-length(Bacillariophyceae_tb_occur[,colSums(Bacillariophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Bacillariophyceae",samples_per_class=Bacillariophyceae_tb_occur_len))
+
+Chlorarachniophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Chlorarachniophyceae"),]
+Chlorarachniophyceae_tb_occur <- Chlorarachniophyceae_tb[,1:91]
+Chlorarachniophyceae_tb_occur_len<-length(Chlorarachniophyceae_tb_occur[,colSums(Chlorarachniophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorarachniophyceae",samples_per_class=Chlorarachniophyceae_tb_occur_len))
+
+Bolidophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Bolidophyceae"),]
+Bolidophyceae_tb_occur <- Bolidophyceae_tb[,1:91]
+Bolidophyceae_tb_occur_len<-length(Bolidophyceae_tb_occur[,colSums(Bolidophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Bolidophyceae",samples_per_class=Bolidophyceae_tb_occur_len))
+
+Pinguiophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Pinguiophyceae"),]
+Pinguiophyceae_tb_occur <- Pinguiophyceae_tb[,1:91]
+Pinguiophyceae_tb_occur_len<-length(Pinguiophyceae_tb_occur[,colSums(Pinguiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pinguiophyceae",samples_per_class=Pinguiophyceae_tb_occur_len))
+
+Prymnesiophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Prymnesiophyceae"),]
+Prymnesiophyceae_tb_occur <- Prymnesiophyceae_tb[,1:91]
+Prymnesiophyceae_tb_occur_len<-length(Prymnesiophyceae_tb_occur[,colSums(Prymnesiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prymnesiophyceae",samples_per_class=Prymnesiophyceae_tb_occur_len))
+
+Mamiellophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Mamiellophyceae"),]
+Mamiellophyceae_tb_occur <- Mamiellophyceae_tb[,1:91]
+Mamiellophyceae_tb_occur_len<-length(Mamiellophyceae_tb_occur[,colSums(Mamiellophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Mamiellophyceae",samples_per_class=Mamiellophyceae_tb_occur_len))
+
+Eustigmatophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Eustigmatophyceae"),]
+Eustigmatophyceae_tb_occur <- Eustigmatophyceae_tb[,1:91]
+Eustigmatophyceae_tb_occur_len<-length(Eustigmatophyceae_tb_occur[,colSums(Eustigmatophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Eustigmatophyceae",samples_per_class=Eustigmatophyceae_tb_occur_len))
+
+Chlorophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Chlorophyceae"),]
+Chlorophyceae_tb_occur <- Chlorophyceae_tb[,1:91]
+Chlorophyceae_tb_occur_len<-length(Chlorophyceae_tb_occur[,colSums(Chlorophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorophyceae",samples_per_class=Chlorophyceae_tb_occur_len))
+
+Ulvophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Ulvophyceae"),]
+Ulvophyceae_tb_occur <- Ulvophyceae_tb[,1:91]
+Ulvophyceae_tb_occur_len<-length(Ulvophyceae_tb_occur[,colSums(Ulvophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Ulvophyceae",samples_per_class=Ulvophyceae_tb_occur_len))
+
+Raphydophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Raphydophyceae"),]
+Raphydophyceae_tb_occur <- Raphydophyceae_tb[,1:91]
+Raphydophyceae_tb_occur_len<-length(Raphydophyceae_tb_occur[,colSums(Raphydophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Raphydophyceae",samples_per_class=Raphydophyceae_tb_occur_len))
+
+Trebouxiophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Trebouxiophyceae"),]
+Trebouxiophyceae_tb_occur <- Trebouxiophyceae_tb[,1:91]
+Trebouxiophyceae_tb_occur_len<-length(Trebouxiophyceae_tb_occur[,colSums(Trebouxiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Trebouxiophyceae",samples_per_class=Trebouxiophyceae_tb_occur_len))
+
+Phaeophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Phaeophyceae"),]
+Phaeophyceae_tb_occur <- Phaeophyceae_tb[,1:91]
+Phaeophyceae_tb_occur_len<-length(Phaeophyceae_tb_occur[,colSums(Phaeophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Phaeophyceae",samples_per_class=Phaeophyceae_tb_occur_len))
+
+Phaeothamniophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Phaeothamniophyceae"),]
+Phaeothamniophyceae_tb_occur <- Phaeothamniophyceae_tb[,1:91]
+Phaeothamniophyceae_tb_occur_len<-length(Phaeothamniophyceae_tb_occur[,colSums(Phaeothamniophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Phaeothamniophyceae",samples_per_class=Phaeothamniophyceae_tb_occur_len))
+
+Xanthophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Xanthophyceae"),]
+Xanthophyceae_tb_occur <- Xanthophyceae_tb[,1:91]
+Xanthophyceae_tb_occur_len<-length(Xanthophyceae_tb_occur[,colSums(Xanthophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Xanthophyceae",samples_per_class=Xanthophyceae_tb_occur_len))
+
+Chlorodendrophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Chlorodendrophyceae"),]
+Chlorodendrophyceae_tb_occur <- Chlorodendrophyceae_tb[,1:91]
+Chlorodendrophyceae_tb_occur_len<-length(Chlorodendrophyceae_tb_occur[,colSums(Chlorodendrophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorodendrophyceae",samples_per_class=Chlorodendrophyceae_tb_occur_len))
+
+IncertaeSedis_Archaeplastida_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "IncertaeSedis_Archaeplastida"),]
+IncertaeSedis_Archaeplastida_tb_occur <- IncertaeSedis_Archaeplastida_tb[,1:91]
+IncertaeSedis_Archaeplastida_tb_occur_len<-length(IncertaeSedis_Archaeplastida_tb_occur[,colSums(IncertaeSedis_Archaeplastida_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="IncertaeSedis_Archaeplastida",samples_per_class=IncertaeSedis_Archaeplastida_tb_occur_len))
+
+Nephroselmidophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Nephroselmidophyceae"),]
+Nephroselmidophyceae_tb_occur <- Nephroselmidophyceae_tb[,1:91]
+Nephroselmidophyceae_tb_occur_len<-length(Nephroselmidophyceae_tb_occur[,colSums(Nephroselmidophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Nephroselmidophyceae",samples_per_class=Nephroselmidophyceae_tb_occur_len))
+
+Pavlovophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Pavlovophyceae"),]
+Pavlovophyceae_tb_occur <- Pavlovophyceae_tb[,1:91]
+Pavlovophyceae_tb_occur_len<-length(Pavlovophyceae_tb_occur[,colSums(Pavlovophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pavlovophyceae",samples_per_class=Pavlovophyceae_tb_occur_len))
+
+Rhodophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Rhodophyceae"),]
+Rhodophyceae_tb_occur <- Rhodophyceae_tb[,1:91]
+Rhodophyceae_tb_occur_len<-length(Rhodophyceae_tb_occur[,colSums(Rhodophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Rhodophyceae",samples_per_class=Rhodophyceae_tb_occur_len))
+
+Rappemonads_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Rappemonads"),]
+Rappemonads_tb_occur <- Rappemonads_tb[,1:91]
+Rappemonads_tb_occur_len<-length(Rappemonads_tb_occur[,colSums(Rappemonads_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Rappemonads",samples_per_class=Rappemonads_tb_occur_len))
+
+MOCH_1_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "MOCH_1"),]
+MOCH_1_tb_occur <- MOCH_1_tb[,1:91]
+MOCH_1_tb_occur_len<-length(MOCH_1_tb_occur[,colSums(MOCH_1_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_1",samples_per_class=MOCH_1_tb_occur_len))
+
+MOCH_2_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "MOCH_2"),]
+MOCH_2_tb_occur <- MOCH_2_tb[,1:91]
+MOCH_2_tb_occur_len<-length(MOCH_2_tb_occur[,colSums(MOCH_2_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_2",samples_per_class=MOCH_2_tb_occur_len))
+
+MOCH_5_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "MOCH_5"),]
+MOCH_5_tb_occur <- MOCH_5_tb[,1:91]
+MOCH_5_tb_occur_len<-length(MOCH_5_tb_occur[,colSums(MOCH_5_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_5",samples_per_class=MOCH_5_tb_occur_len))
+
+Prasinophyceae_clade_VII_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae_clade-VII"),]
+Prasinophyceae_clade_VII_tb_occur <- Prasinophyceae_clade_VII_tb[,1:91]
+Prasinophyceae_clade_VII_tb_occur_len<-length(Prasinophyceae_clade_VII_tb_occur[,colSums(Prasinophyceae_clade_VII_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prasinophyceae_clade-VII",samples_per_class=Prasinophyceae_clade_VII_tb_occur_len))
+
+Prasinophyceae_clade_IX_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae_clade-IX"),]
+Prasinophyceae_clade_IX_tb_occur <- Prasinophyceae_clade_IX_tb[,1:91]
+Prasinophyceae_clade_IX_tb_occur_len<-length(Prasinophyceae_clade_IX_tb_occur[,colSums(Prasinophyceae_clade_IX_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prasinophyceae_clade-IX",samples_per_class=Prasinophyceae_clade_IX_tb_occur_len))
+
+Pyramimonadaceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Pyramimonadaceae"),]
+Pyramimonadaceae_tb_occur <- Pyramimonadaceae_tb[,1:91]
+Pyramimonadaceae_tb_occur_len<-length(Pyramimonadaceae_tb_occur[,colSums(Pyramimonadaceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pyramimonadaceae",samples_per_class=Pyramimonadaceae_tb_occur_len))
+
+occurrence_counts_phototrophs
+#row.names(occurrence_counts_phototrophs)<-occurrence_counts_phototrophs$group
+occurrence_counts_phototrophs<-as.data.frame(occurrence_counts_phototrophs)
+```
+
+\
+**Absolute values**
+
+```{r aggregate_v2, echo=FALSE, results="hide", warning=FALSE}
+class_summary_reads_per_class<-aggregate(rowSums(tb18_phototrophs[1:91]), list(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif), sum)
+# count the different groups
+
+class_summary_otus_per_class<-aggregate(rowSums(tb18_phototrophs[1:91]), list(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif), length)
+
+## READS PER CLASS ##
+attach(class_summary_reads_per_class)
+class_summary_reads_per_class_order<-class_summary_reads_per_class[order(-x),]
+detach(class_summary_reads_per_class)
+class_summary_reads_per_class_order
+
+#fix column names
+row.names(class_summary_reads_per_class_order)<-class_summary_reads_per_class_order[,1]
+class_summary_reads_per_class_order<-class_summary_reads_per_class_order[c(-1)]
+colnames(class_summary_reads_per_class_order)<-c("reads_per_class")
+
+## OTUs PER CLASS ##
+attach(class_summary_otus_per_class)
+class_summary_otus_per_class_order<-class_summary_otus_per_class[order(-x),]
+detach(class_summary_otus_per_class)
+class_summary_otus_per_class_order
+
+row.names(class_summary_otus_per_class_order)<-class_summary_otus_per_class_order[,1]
+class_summary_otus_per_class_order<-class_summary_otus_per_class_order[c(-1)]
+colnames(class_summary_otus_per_class_order)<-c("OTUs_per_class")
+
+#class_summary_reads<-aggregate(sum~class, data=otutab_full_wTax, FUN="sum") 
+# sum reads different groups
+```
+
+```{r create_table_merging_#OTUs_#reads_#samples_v2, echo=FALSE, warning=F}
+tb18S_OTUs_reads_samples <- merge(class_summary_reads_per_class_order, class_summary_otus_per_class_order, by="row.names")
+
+row.names(tb18S_OTUs_reads_samples)<-tb18S_OTUs_reads_samples[,1]
+
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[,-1]
+colnames(tb18S_OTUs_reads_samples)<-c("reads_per_class","OTUs_per_class")
+#tb18S_OTUs_reads_samples[1:5,1:2]
+
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[order(tb18S_OTUs_reads_samples$reads_per_class, tb18S_OTUs_reads_samples$OTUs_per_class, decreasing = T), c(1,2)]
+
+#add no. of samples per class
+tb18S_OTUs_reads_samples<-merge(tb18S_OTUs_reads_samples, occurrence_counts_phototrophs, by.x="row.names", by.y="group", all.x=TRUE)
+
+row.names(tb18S_OTUs_reads_samples)<-tb18S_OTUs_reads_samples[,1]
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[,-1]
+tb18S_OTUs_reads_samples
+```
+
+
+\
+**Relative values**
+
+```{r OTUs_vs_reads_relative_values_18S_v2, echo=FALSE, warning=F}
+
+tb18S_OTUs_reads_samples_rel_abund <- tb18S_OTUs_reads_samples
+
+tb18S_OTUs_reads_samples_rel_abund$reads_per_class<-(tb18S_OTUs_reads_samples_rel_abund$reads_per_class*100)/colSums(tb18S_OTUs_reads_samples)[1]
+tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class<-(tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class*100)/colSums(tb18S_OTUs_reads_samples)[2]
+tb18S_OTUs_reads_samples_rel_abund$samples_per_class<-(tb18S_OTUs_reads_samples_rel_abund$samples_per_class*100)/91
+
+colSums(tb18S_OTUs_reads_samples_rel_abund)
+tb18S_OTUs_reads_samples_rel_abund
+```
+
+\
+\
+
+Reads per class vs. OTUs per class:
+
+```{r OTUs_vs_reads_18S_v2_v2, echo=FALSE, warnings=F, warning=F}
+ggplot(tb18S_OTUs_reads_samples_rel_abund) +
+  geom_point(aes(OTUs_per_class, reads_per_class)) +
+  geom_text_repel(aes(OTUs_per_class, reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 3, box.padding = unit(0.1, "lines"), point.padding = unit(0.02, 'lines')) + labs(title="[1] Reads per class vs. OTUs per class", x="\nTP-miTags-18S OTUs (%)", y="TP-miTags-18S reads (%)\n") + scale_x_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100))  + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+```
+
+\
+\
+
+Reads per class vs. samples in which they occurr:
+
+```{r reads_vs_samples_18S_v2, echo=FALSE, warning=F}
+ggplot(tb18S_OTUs_reads_samples_rel_abund) +
+  geom_point(aes(samples_per_class,reads_per_class)) +
+  geom_text_repel(aes(samples_per_class,reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 8, box.padding = unit(0.1, "lines"), point.padding = unit(0.2, 'lines')) + scale_x_continuous(limits = c(0, 116), breaks=c(25,50,75,100)) + labs(title="[2] Reads per class vs. samples in which they occur", x="\nTP-miTags-18S samples (%)", y="TP-miTags-18S reads (%)\n") + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+```
+
+
+
+### 1.6.2) Non-rarefied data
+
+\
+**PHOTOTROPHS + HETEROTROPHS**
+
+
+```{r merge_tables_non.raref_v2, echo=FALSE, results="hide", warning=FALSE}
+#Let's add the taxonomic classification by merging "tb18_tax_occur_min49975" with "tb18_tax":
+
+tb18_tax_occur_min49975_t<-tb18_tax_occur_min49975
+tb18_min49975_tax<-merge(tb18_tax_occur_min49975_t,tb18_class, by="row.names")
+
+
+dim(tb18_min49975_tax)
+tb18_min49975_tax[1:5,1:5]
+
+#fix OTU_no as new row
+rownames(tb18_min49975_tax)=tb18_min49975_tax$Row.names
+#add OTU_no as rowname
+rownames.tb18_min49975_tax<-tb18_min49975_tax[,1]
+tb18_min49975_tax<-tb18_min49975_tax[,-1]
+
+dim(tb18_min49975_tax)
+tb18_min49975_tax[1:5, 1:5]
+
+#sort by OTU_no (split rowname, introduce no. into column "OTU_no" and sort)
+tb18_min49975_tax["OTU_no"] <- NA
+tb18_min49975_tax$OTU_no <- sapply(strsplit(rownames(tb18_min49975_tax),split= "\\_"),'[',2)
+tb18_min49975_tax$OTU_no <- as.numeric(as.character(tb18_min49975_tax$OTU_no))
+tb18_min49975_tax_sorted<-tb18_min49975_tax[order(tb18_min49975_tax$OTU_no, decreasing = FALSE), ]
+```
+
+No. of OTUs and reads of the rearefied dataset:
+
+```{r dim_merge1_non.raref_v2, echo=F}
+nrow(tb18_min49975_tax_sorted)
+sum(colSums(tb18_min49975_tax_sorted[,1:91]))
+
+#dim(tb18_min49975_tax_sorted)
+#tb18_min49975_tax_sorted[1:5,1:5]
+```
+
+No. of OTUs and reads of phototrophic groups:
+
+```{r dim_merge2_non.raref_v2, echo=F}
+#selection of phototrophs:
+tb18_phototrophs <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif != "NA"),]
+
+nrow(tb18_phototrophs)
+sum(colSums(tb18_phototrophs[,1:91]))
+
+#dim(tb18_phototrophs)
+#tb18_phototrophs[1:5,1:5]
+```
+
+
+No. of OTUs and reads of non-phototrophic groups:
+
+```{r dim_merge3_non.raref_v2, echo=F}
+#translate "NA" to "Heterotrophs":
+tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif<-as.character(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif)
+tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif[which(is.na(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif))]<-"Heterotrophs"
+
+#selection of non.phototrophs:
+tb18_non.phototrophs <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Heterotrophs"),]
+
+nrow(tb18_non.phototrophs)
+sum(colSums(tb18_non.phototrophs[,1:91]))
+
+#dim(tb18_non.phototrophs)
+#tb18_non.phototrophs[1:5,1:5]
+```
+
+
+\
+**Absolute values**
+
+
+```{r count_samples_per_group_Heterotrophs_non.raref_v2, echo=F, warning=FALSE, results="hide"}
+occurrence_counts_phototrophs<-data.table()
+
+#create a table per group and count in how many samples they occur. 
+Dinophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Dinophyceae"),]
+Dinophyceae_tb_occur <- Dinophyceae_tb[,1:91]
+Dinophyceae_tb_occur_len<-length(Dinophyceae_tb_occur[,colSums(Dinophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Dinophyceae",samples_per_class=Dinophyceae_tb_occur_len))
+
+Prasinophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "other_Prasinophyceae"),]
+Prasinophyceae_tb_occur <- Prasinophyceae_tb[,1:91]
+Prasinophyceae_tb_occur_len<-length(Prasinophyceae_tb_occur[,colSums(Prasinophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="other_Prasinophyceae",samples_per_class=Prasinophyceae_tb_occur_len))
+
+Chrysophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Chrysophyceae"),]
+Chrysophyceae_tb_occur <- Chrysophyceae_tb[,1:91]
+Chrysophyceae_tb_occur_len<-length(Chrysophyceae_tb_occur[,colSums(Chrysophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chrysophyceae",samples_per_class=Chrysophyceae_tb_occur_len))
+
+Pelagophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Pelagophyceae"),]
+Pelagophyceae_tb_occur <- Pelagophyceae_tb[,1:91]
+Pelagophyceae_tb_occur_len<-length(Pelagophyceae_tb_occur[,colSums(Pelagophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pelagophyceae",samples_per_class=Pelagophyceae_tb_occur_len))
+
+Dictyochophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Dictyochophyceae"),]
+Dictyochophyceae_tb_occur <- Dictyochophyceae_tb[,1:91]
+Dictyochophyceae_tb_occur_len<-length(Dictyochophyceae_tb_occur[,colSums(Dictyochophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Dictyochophyceae",samples_per_class=Dictyochophyceae_tb_occur_len))
+
+Cryptophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Cryptophyceae"),]
+Cryptophyceae_tb_occur <- Cryptophyceae_tb[,1:91]
+Cryptophyceae_tb_occur_len<-length(Cryptophyceae_tb_occur[,colSums(Cryptophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Cryptophyceae",samples_per_class=Cryptophyceae_tb_occur_len))
+
+Bacillariophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Bacillariophyceae"),]
+Bacillariophyceae_tb_occur <- Bacillariophyceae_tb[,1:91]
+Bacillariophyceae_tb_occur_len<-length(Bacillariophyceae_tb_occur[,colSums(Bacillariophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Bacillariophyceae",samples_per_class=Bacillariophyceae_tb_occur_len))
+
+Chlorarachniophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Chlorarachniophyceae"),]
+Chlorarachniophyceae_tb_occur <- Chlorarachniophyceae_tb[,1:91]
+Chlorarachniophyceae_tb_occur_len<-length(Chlorarachniophyceae_tb_occur[,colSums(Chlorarachniophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorarachniophyceae",samples_per_class=Chlorarachniophyceae_tb_occur_len))
+
+Bolidophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Bolidophyceae"),]
+Bolidophyceae_tb_occur <- Bolidophyceae_tb[,1:91]
+Bolidophyceae_tb_occur_len<-length(Bolidophyceae_tb_occur[,colSums(Bolidophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Bolidophyceae",samples_per_class=Bolidophyceae_tb_occur_len))
+
+Pinguiophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Pinguiophyceae"),]
+Pinguiophyceae_tb_occur <- Pinguiophyceae_tb[,1:91]
+Pinguiophyceae_tb_occur_len<-length(Pinguiophyceae_tb_occur[,colSums(Pinguiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pinguiophyceae",samples_per_class=Pinguiophyceae_tb_occur_len))
+
+Prymnesiophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Prymnesiophyceae"),]
+Prymnesiophyceae_tb_occur <- Prymnesiophyceae_tb[,1:91]
+Prymnesiophyceae_tb_occur_len<-length(Prymnesiophyceae_tb_occur[,colSums(Prymnesiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prymnesiophyceae",samples_per_class=Prymnesiophyceae_tb_occur_len))
+
+Mamiellophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Mamiellophyceae"),]
+Mamiellophyceae_tb_occur <- Mamiellophyceae_tb[,1:91]
+Mamiellophyceae_tb_occur_len<-length(Mamiellophyceae_tb_occur[,colSums(Mamiellophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Mamiellophyceae",samples_per_class=Mamiellophyceae_tb_occur_len))
+
+Eustigmatophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Eustigmatophyceae"),]
+Eustigmatophyceae_tb_occur <- Eustigmatophyceae_tb[,1:91]
+Eustigmatophyceae_tb_occur_len<-length(Eustigmatophyceae_tb_occur[,colSums(Eustigmatophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Eustigmatophyceae",samples_per_class=Eustigmatophyceae_tb_occur_len))
+
+Chlorophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Chlorophyceae"),]
+Chlorophyceae_tb_occur <- Chlorophyceae_tb[,1:91]
+Chlorophyceae_tb_occur_len<-length(Chlorophyceae_tb_occur[,colSums(Chlorophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorophyceae",samples_per_class=Chlorophyceae_tb_occur_len))
+
+Ulvophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Ulvophyceae"),]
+Ulvophyceae_tb_occur <- Ulvophyceae_tb[,1:91]
+Ulvophyceae_tb_occur_len<-length(Ulvophyceae_tb_occur[,colSums(Ulvophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Ulvophyceae",samples_per_class=Ulvophyceae_tb_occur_len))
+
+Raphydophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Raphydophyceae"),]
+Raphydophyceae_tb_occur <- Raphydophyceae_tb[,1:91]
+Raphydophyceae_tb_occur_len<-length(Raphydophyceae_tb_occur[,colSums(Raphydophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Raphydophyceae",samples_per_class=Raphydophyceae_tb_occur_len))
+
+Trebouxiophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Trebouxiophyceae"),]
+Trebouxiophyceae_tb_occur <- Trebouxiophyceae_tb[,1:91]
+Trebouxiophyceae_tb_occur_len<-length(Trebouxiophyceae_tb_occur[,colSums(Trebouxiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Trebouxiophyceae",samples_per_class=Trebouxiophyceae_tb_occur_len))
+
+Phaeophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Phaeophyceae"),]
+Phaeophyceae_tb_occur <- Phaeophyceae_tb[,1:91]
+Phaeophyceae_tb_occur_len<-length(Phaeophyceae_tb_occur[,colSums(Phaeophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Phaeophyceae",samples_per_class=Phaeophyceae_tb_occur_len))
+
+Phaeothamniophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Phaeothamniophyceae"),]
+Phaeothamniophyceae_tb_occur <- Phaeothamniophyceae_tb[,1:91]
+Phaeothamniophyceae_tb_occur_len<-length(Phaeothamniophyceae_tb_occur[,colSums(Phaeothamniophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Phaeothamniophyceae",samples_per_class=Phaeothamniophyceae_tb_occur_len))
+
+Xanthophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Xanthophyceae"),]
+Xanthophyceae_tb_occur <- Xanthophyceae_tb[,1:91]
+Xanthophyceae_tb_occur_len<-length(Xanthophyceae_tb_occur[,colSums(Xanthophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Xanthophyceae",samples_per_class=Xanthophyceae_tb_occur_len))
+
+Chlorodendrophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Chlorodendrophyceae"),]
+Chlorodendrophyceae_tb_occur <- Chlorodendrophyceae_tb[,1:91]
+Chlorodendrophyceae_tb_occur_len<-length(Chlorodendrophyceae_tb_occur[,colSums(Chlorodendrophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorodendrophyceae",samples_per_class=Chlorodendrophyceae_tb_occur_len))
+
+IncertaeSedis_Archaeplastida_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "IncertaeSedis_Archaeplastida"),]
+IncertaeSedis_Archaeplastida_tb_occur <- IncertaeSedis_Archaeplastida_tb[,1:91]
+IncertaeSedis_Archaeplastida_tb_occur_len<-length(IncertaeSedis_Archaeplastida_tb_occur[,colSums(IncertaeSedis_Archaeplastida_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="IncertaeSedis_Archaeplastida",samples_per_class=IncertaeSedis_Archaeplastida_tb_occur_len))
+
+Nephroselmidophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Nephroselmidophyceae"),]
+Nephroselmidophyceae_tb_occur <- Nephroselmidophyceae_tb[,1:91]
+Nephroselmidophyceae_tb_occur_len<-length(Nephroselmidophyceae_tb_occur[,colSums(Nephroselmidophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Nephroselmidophyceae",samples_per_class=Nephroselmidophyceae_tb_occur_len))
+
+Pavlovophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Pavlovophyceae"),]
+Pavlovophyceae_tb_occur <- Pavlovophyceae_tb[,1:91]
+Pavlovophyceae_tb_occur_len<-length(Pavlovophyceae_tb_occur[,colSums(Pavlovophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pavlovophyceae",samples_per_class=Pavlovophyceae_tb_occur_len))
+
+Rhodophyceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Rhodophyceae"),]
+Rhodophyceae_tb_occur <- Rhodophyceae_tb[,1:91]
+Rhodophyceae_tb_occur_len<-length(Rhodophyceae_tb_occur[,colSums(Rhodophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Rhodophyceae",samples_per_class=Rhodophyceae_tb_occur_len))
+
+Rappemonads_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Rappemonads"),]
+Rappemonads_tb_occur <- Rappemonads_tb[,1:91]
+Rappemonads_tb_occur_len<-length(Rappemonads_tb_occur[,colSums(Rappemonads_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Rappemonads",samples_per_class=Rappemonads_tb_occur_len))
+
+MOCH_1_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "MOCH_1"),]
+MOCH_1_tb_occur <- MOCH_1_tb[,1:91]
+MOCH_1_tb_occur_len<-length(MOCH_1_tb_occur[,colSums(MOCH_1_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_1",samples_per_class=MOCH_1_tb_occur_len))
+
+MOCH_2_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "MOCH_2"),]
+MOCH_2_tb_occur <- MOCH_2_tb[,1:91]
+MOCH_2_tb_occur_len<-length(MOCH_2_tb_occur[,colSums(MOCH_2_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_2",samples_per_class=MOCH_2_tb_occur_len))
+
+MOCH_5_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "MOCH_5"),]
+MOCH_5_tb_occur <- MOCH_5_tb[,1:91]
+MOCH_5_tb_occur_len<-length(MOCH_5_tb_occur[,colSums(MOCH_5_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_5",samples_per_class=MOCH_5_tb_occur_len))
+
+Prasinophyceae_clade_VII_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae_clade-VII"),]
+Prasinophyceae_clade_VII_tb_occur <- Prasinophyceae_clade_VII_tb[,1:91]
+Prasinophyceae_clade_VII_tb_occur_len<-length(Prasinophyceae_clade_VII_tb_occur[,colSums(Prasinophyceae_clade_VII_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prasinophyceae_clade-VII",samples_per_class=Prasinophyceae_clade_VII_tb_occur_len))
+
+Prasinophyceae_clade_IX_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae_clade-IX"),]
+Prasinophyceae_clade_IX_tb_occur <- Prasinophyceae_clade_IX_tb[,1:91]
+Prasinophyceae_clade_IX_tb_occur_len<-length(Prasinophyceae_clade_IX_tb_occur[,colSums(Prasinophyceae_clade_IX_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prasinophyceae_clade-IX",samples_per_class=Prasinophyceae_clade_IX_tb_occur_len))
+
+Pyramimonadaceae_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Pyramimonadaceae"),]
+Pyramimonadaceae_tb_occur <- Pyramimonadaceae_tb[,1:91]
+Pyramimonadaceae_tb_occur_len<-length(Pyramimonadaceae_tb_occur[,colSums(Pyramimonadaceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pyramimonadaceae",samples_per_class=Pyramimonadaceae_tb_occur_len))
+
+Heterotrophs_tb <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Heterotrophs"),]
+Heterotrophs_tb_occur <- Heterotrophs_tb[,1:91]
+Heterotrophs_tb_occur_len<-length(Heterotrophs_tb_occur[,colSums(Heterotrophs_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Heterotrophs",samples_per_class=Heterotrophs_tb_occur_len))
+
+occurrence_counts_phototrophs
+#row.names(occurrence_counts_phototrophs)<-occurrence_counts_phototrophs$group
+occurrence_counts_phototrophs<-as.data.frame(occurrence_counts_phototrophs)
+```
+
+```{r aggregate_Heterotrophs_non.raref_v2, echo=FALSE, results="hide", warning=FALSE}
+class_summary_reads_per_class<-aggregate(rowSums(tb18_min49975_tax_sorted[1:91]), list(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif), sum)
+# count the different groups
+
+class_summary_otus_per_class<-aggregate(rowSums(tb18_min49975_tax_sorted[1:91]), list(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif), length)
+
+## READS PER CLASS ##
+attach(class_summary_reads_per_class)
+class_summary_reads_per_class_order<-class_summary_reads_per_class[order(-x),]
+detach(class_summary_reads_per_class)
+class_summary_reads_per_class_order
+
+#fix column names
+row.names(class_summary_reads_per_class_order)<-class_summary_reads_per_class_order[,1]
+class_summary_reads_per_class_order<-class_summary_reads_per_class_order[c(-1)]
+colnames(class_summary_reads_per_class_order)<-c("reads_per_class")
+
+## OTUs PER CLASS ##
+attach(class_summary_otus_per_class)
+class_summary_otus_per_class_order<-class_summary_otus_per_class[order(-x),]
+detach(class_summary_otus_per_class)
+class_summary_otus_per_class_order
+
+row.names(class_summary_otus_per_class_order)<-class_summary_otus_per_class_order[,1]
+class_summary_otus_per_class_order<-class_summary_otus_per_class_order[c(-1)]
+colnames(class_summary_otus_per_class_order)<-c("OTUs_per_class")
+
+#class_summary_reads<-aggregate(sum~class, data=otutab_full_wTax, FUN="sum") 
+# sum reads different groups
+```
+
+```{r create_table_merging_#OTUs_#reads_#samples_Heterotrophs_non.raref_v2, echo=FALSE, warning=F}
+tb18S_OTUs_reads_samples <- merge(class_summary_reads_per_class_order, class_summary_otus_per_class_order, by="row.names")
+
+row.names(tb18S_OTUs_reads_samples)<-tb18S_OTUs_reads_samples[,1]
+
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[,-1]
+colnames(tb18S_OTUs_reads_samples)<-c("reads_per_class","OTUs_per_class")
+#tb18S_OTUs_reads_samples[1:5,1:2]
+
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[order(tb18S_OTUs_reads_samples$reads_per_class, tb18S_OTUs_reads_samples$OTUs_per_class, decreasing = T), c(1,2)]
+
+#add no. of samples per class
+tb18S_OTUs_reads_samples<-merge(tb18S_OTUs_reads_samples, occurrence_counts_phototrophs, by.x="row.names", by.y="group", all.x=TRUE)
+
+row.names(tb18S_OTUs_reads_samples)<-tb18S_OTUs_reads_samples[,1]
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[,-1]
+tb18S_OTUs_reads_samples
+```
+
+
+\
+**Relative values**
+
+```{r OTUs_vs_reads_relative_values_18S_Heterotrophs_non.raref_v2, echo=FALSE, warning=F}
+
+tb18S_OTUs_reads_samples_rel_abund <- tb18S_OTUs_reads_samples
+
+tb18S_OTUs_reads_samples_rel_abund$reads_per_class<-(tb18S_OTUs_reads_samples_rel_abund$reads_per_class*100)/colSums(tb18S_OTUs_reads_samples)[1]
+tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class<-(tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class*100)/colSums(tb18S_OTUs_reads_samples)[2]
+tb18S_OTUs_reads_samples_rel_abund$samples_per_class<-(tb18S_OTUs_reads_samples_rel_abund$samples_per_class*100)/91
+
+colSums(tb18S_OTUs_reads_samples_rel_abund)
+tb18S_OTUs_reads_samples_rel_abund
+```
+
+\
+\
+
+Reads per class vs. OTUs per class:
+
+```{r OTUs_vs_reads_18S_v2_Heterotrophs_non.raref_v2, echo=FALSE, warnings=F, warning=F}
+ggplot(tb18S_OTUs_reads_samples_rel_abund) +
+  geom_point(aes(OTUs_per_class, reads_per_class)) +
+  geom_text_repel(aes(OTUs_per_class, reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 3, box.padding = unit(0.1, "lines"), point.padding = unit(0.02, 'lines')) + labs(title="[1] Reads per class vs. OTUs per class", x="\nTP-miTags-18S OTUs (%)", y="TP-miTags-18S reads (%)\n") + scale_x_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100))  + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+```
+
+\
+\
+
+Reads per class vs. samples in which they occurr:
+
+```{r reads_vs_samples_18S_Heterotrophs_non.raref_v2, echo=FALSE, warning=F}
+ggplot(tb18S_OTUs_reads_samples_rel_abund) +
+  geom_point(aes(samples_per_class,reads_per_class)) +
+  geom_text_repel(aes(samples_per_class,reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 8, box.padding = unit(0.1, "lines"), point.padding = unit(0.2, 'lines')) + scale_x_continuous(limits = c(0, 116), breaks=c(25,50,75,100)) + labs(title="[2] Reads per class vs. samples in which they occur", x="\nTP-miTags-18S samples (%)", y="TP-miTags-18S reads (%)\n") + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+```
+
+\
+**PHOTOTROPHS**
+
+```{r count_samples_per_group_non.raref_v2, echo=F, warning=FALSE, results="hide"}
+occurrence_counts_phototrophs<-data.table()
+
+#create a table per group and count in how many samples they occur. 
+Dinophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Dinophyceae"),]
+Dinophyceae_tb_occur <- Dinophyceae_tb[,1:91]
+Dinophyceae_tb_occur_len<-length(Dinophyceae_tb_occur[,colSums(Dinophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Dinophyceae",samples_per_class=Dinophyceae_tb_occur_len))
+
+Prasinophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "other_Prasinophyceae"),]
+Prasinophyceae_tb_occur <- Prasinophyceae_tb[,1:91]
+Prasinophyceae_tb_occur_len<-length(Prasinophyceae_tb_occur[,colSums(Prasinophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="other_Prasinophyceae",samples_per_class=Prasinophyceae_tb_occur_len))
+
+Chrysophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Chrysophyceae"),]
+Chrysophyceae_tb_occur <- Chrysophyceae_tb[,1:91]
+Chrysophyceae_tb_occur_len<-length(Chrysophyceae_tb_occur[,colSums(Chrysophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chrysophyceae",samples_per_class=Chrysophyceae_tb_occur_len))
+
+Pelagophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Pelagophyceae"),]
+Pelagophyceae_tb_occur <- Pelagophyceae_tb[,1:91]
+Pelagophyceae_tb_occur_len<-length(Pelagophyceae_tb_occur[,colSums(Pelagophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pelagophyceae",samples_per_class=Pelagophyceae_tb_occur_len))
+
+Dictyochophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Dictyochophyceae"),]
+Dictyochophyceae_tb_occur <- Dictyochophyceae_tb[,1:91]
+Dictyochophyceae_tb_occur_len<-length(Dictyochophyceae_tb_occur[,colSums(Dictyochophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Dictyochophyceae",samples_per_class=Dictyochophyceae_tb_occur_len))
+
+Cryptophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Cryptophyceae"),]
+Cryptophyceae_tb_occur <- Cryptophyceae_tb[,1:91]
+Cryptophyceae_tb_occur_len<-length(Cryptophyceae_tb_occur[,colSums(Cryptophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Cryptophyceae",samples_per_class=Cryptophyceae_tb_occur_len))
+
+Bacillariophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Bacillariophyceae"),]
+Bacillariophyceae_tb_occur <- Bacillariophyceae_tb[,1:91]
+Bacillariophyceae_tb_occur_len<-length(Bacillariophyceae_tb_occur[,colSums(Bacillariophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Bacillariophyceae",samples_per_class=Bacillariophyceae_tb_occur_len))
+
+Chlorarachniophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Chlorarachniophyceae"),]
+Chlorarachniophyceae_tb_occur <- Chlorarachniophyceae_tb[,1:91]
+Chlorarachniophyceae_tb_occur_len<-length(Chlorarachniophyceae_tb_occur[,colSums(Chlorarachniophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorarachniophyceae",samples_per_class=Chlorarachniophyceae_tb_occur_len))
+
+Bolidophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Bolidophyceae"),]
+Bolidophyceae_tb_occur <- Bolidophyceae_tb[,1:91]
+Bolidophyceae_tb_occur_len<-length(Bolidophyceae_tb_occur[,colSums(Bolidophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Bolidophyceae",samples_per_class=Bolidophyceae_tb_occur_len))
+
+Pinguiophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Pinguiophyceae"),]
+Pinguiophyceae_tb_occur <- Pinguiophyceae_tb[,1:91]
+Pinguiophyceae_tb_occur_len<-length(Pinguiophyceae_tb_occur[,colSums(Pinguiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pinguiophyceae",samples_per_class=Pinguiophyceae_tb_occur_len))
+
+Prymnesiophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Prymnesiophyceae"),]
+Prymnesiophyceae_tb_occur <- Prymnesiophyceae_tb[,1:91]
+Prymnesiophyceae_tb_occur_len<-length(Prymnesiophyceae_tb_occur[,colSums(Prymnesiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prymnesiophyceae",samples_per_class=Prymnesiophyceae_tb_occur_len))
+
+Mamiellophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Mamiellophyceae"),]
+Mamiellophyceae_tb_occur <- Mamiellophyceae_tb[,1:91]
+Mamiellophyceae_tb_occur_len<-length(Mamiellophyceae_tb_occur[,colSums(Mamiellophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Mamiellophyceae",samples_per_class=Mamiellophyceae_tb_occur_len))
+
+Eustigmatophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Eustigmatophyceae"),]
+Eustigmatophyceae_tb_occur <- Eustigmatophyceae_tb[,1:91]
+Eustigmatophyceae_tb_occur_len<-length(Eustigmatophyceae_tb_occur[,colSums(Eustigmatophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Eustigmatophyceae",samples_per_class=Eustigmatophyceae_tb_occur_len))
+
+Chlorophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Chlorophyceae"),]
+Chlorophyceae_tb_occur <- Chlorophyceae_tb[,1:91]
+Chlorophyceae_tb_occur_len<-length(Chlorophyceae_tb_occur[,colSums(Chlorophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorophyceae",samples_per_class=Chlorophyceae_tb_occur_len))
+
+Ulvophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Ulvophyceae"),]
+Ulvophyceae_tb_occur <- Ulvophyceae_tb[,1:91]
+Ulvophyceae_tb_occur_len<-length(Ulvophyceae_tb_occur[,colSums(Ulvophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Ulvophyceae",samples_per_class=Ulvophyceae_tb_occur_len))
+
+Raphydophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Raphydophyceae"),]
+Raphydophyceae_tb_occur <- Raphydophyceae_tb[,1:91]
+Raphydophyceae_tb_occur_len<-length(Raphydophyceae_tb_occur[,colSums(Raphydophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Raphydophyceae",samples_per_class=Raphydophyceae_tb_occur_len))
+
+Trebouxiophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Trebouxiophyceae"),]
+Trebouxiophyceae_tb_occur <- Trebouxiophyceae_tb[,1:91]
+Trebouxiophyceae_tb_occur_len<-length(Trebouxiophyceae_tb_occur[,colSums(Trebouxiophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Trebouxiophyceae",samples_per_class=Trebouxiophyceae_tb_occur_len))
+
+Phaeophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Phaeophyceae"),]
+Phaeophyceae_tb_occur <- Phaeophyceae_tb[,1:91]
+Phaeophyceae_tb_occur_len<-length(Phaeophyceae_tb_occur[,colSums(Phaeophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Phaeophyceae",samples_per_class=Phaeophyceae_tb_occur_len))
+
+Phaeothamniophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Phaeothamniophyceae"),]
+Phaeothamniophyceae_tb_occur <- Phaeothamniophyceae_tb[,1:91]
+Phaeothamniophyceae_tb_occur_len<-length(Phaeothamniophyceae_tb_occur[,colSums(Phaeothamniophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Phaeothamniophyceae",samples_per_class=Phaeothamniophyceae_tb_occur_len))
+
+Xanthophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Xanthophyceae"),]
+Xanthophyceae_tb_occur <- Xanthophyceae_tb[,1:91]
+Xanthophyceae_tb_occur_len<-length(Xanthophyceae_tb_occur[,colSums(Xanthophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Xanthophyceae",samples_per_class=Xanthophyceae_tb_occur_len))
+
+Chlorodendrophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Chlorodendrophyceae"),]
+Chlorodendrophyceae_tb_occur <- Chlorodendrophyceae_tb[,1:91]
+Chlorodendrophyceae_tb_occur_len<-length(Chlorodendrophyceae_tb_occur[,colSums(Chlorodendrophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Chlorodendrophyceae",samples_per_class=Chlorodendrophyceae_tb_occur_len))
+
+IncertaeSedis_Archaeplastida_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "IncertaeSedis_Archaeplastida"),]
+IncertaeSedis_Archaeplastida_tb_occur <- IncertaeSedis_Archaeplastida_tb[,1:91]
+IncertaeSedis_Archaeplastida_tb_occur_len<-length(IncertaeSedis_Archaeplastida_tb_occur[,colSums(IncertaeSedis_Archaeplastida_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="IncertaeSedis_Archaeplastida",samples_per_class=IncertaeSedis_Archaeplastida_tb_occur_len))
+
+Nephroselmidophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Nephroselmidophyceae"),]
+Nephroselmidophyceae_tb_occur <- Nephroselmidophyceae_tb[,1:91]
+Nephroselmidophyceae_tb_occur_len<-length(Nephroselmidophyceae_tb_occur[,colSums(Nephroselmidophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Nephroselmidophyceae",samples_per_class=Nephroselmidophyceae_tb_occur_len))
+
+Pavlovophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Pavlovophyceae"),]
+Pavlovophyceae_tb_occur <- Pavlovophyceae_tb[,1:91]
+Pavlovophyceae_tb_occur_len<-length(Pavlovophyceae_tb_occur[,colSums(Pavlovophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pavlovophyceae",samples_per_class=Pavlovophyceae_tb_occur_len))
+
+Rhodophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Rhodophyceae"),]
+Rhodophyceae_tb_occur <- Rhodophyceae_tb[,1:91]
+Rhodophyceae_tb_occur_len<-length(Rhodophyceae_tb_occur[,colSums(Rhodophyceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Rhodophyceae",samples_per_class=Rhodophyceae_tb_occur_len))
+
+Rappemonads_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Rappemonads"),]
+Rappemonads_tb_occur <- Rappemonads_tb[,1:91]
+Rappemonads_tb_occur_len<-length(Rappemonads_tb_occur[,colSums(Rappemonads_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Rappemonads",samples_per_class=Rappemonads_tb_occur_len))
+
+MOCH_1_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "MOCH_1"),]
+MOCH_1_tb_occur <- MOCH_1_tb[,1:91]
+MOCH_1_tb_occur_len<-length(MOCH_1_tb_occur[,colSums(MOCH_1_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_1",samples_per_class=MOCH_1_tb_occur_len))
+
+MOCH_2_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "MOCH_2"),]
+MOCH_2_tb_occur <- MOCH_2_tb[,1:91]
+MOCH_2_tb_occur_len<-length(MOCH_2_tb_occur[,colSums(MOCH_2_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_2",samples_per_class=MOCH_2_tb_occur_len))
+
+MOCH_5_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "MOCH_5"),]
+MOCH_5_tb_occur <- MOCH_5_tb[,1:91]
+MOCH_5_tb_occur_len<-length(MOCH_5_tb_occur[,colSums(MOCH_5_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="MOCH_5",samples_per_class=MOCH_5_tb_occur_len))
+
+Prasinophyceae_clade_VII_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae_clade-VII"),]
+Prasinophyceae_clade_VII_tb_occur <- Prasinophyceae_clade_VII_tb[,1:91]
+Prasinophyceae_clade_VII_tb_occur_len<-length(Prasinophyceae_clade_VII_tb_occur[,colSums(Prasinophyceae_clade_VII_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prasinophyceae_clade-VII",samples_per_class=Prasinophyceae_clade_VII_tb_occur_len))
+
+Prasinophyceae_clade_IX_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae_clade-IX"),]
+Prasinophyceae_clade_IX_tb_occur <- Prasinophyceae_clade_IX_tb[,1:91]
+Prasinophyceae_clade_IX_tb_occur_len<-length(Prasinophyceae_clade_IX_tb_occur[,colSums(Prasinophyceae_clade_IX_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Prasinophyceae_clade-IX",samples_per_class=Prasinophyceae_clade_IX_tb_occur_len))
+
+Pyramimonadaceae_tb <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif == "Pyramimonadaceae"),]
+Pyramimonadaceae_tb_occur <- Pyramimonadaceae_tb[,1:91]
+Pyramimonadaceae_tb_occur_len<-length(Pyramimonadaceae_tb_occur[,colSums(Pyramimonadaceae_tb_occur) > 0])
+occurrence_counts_phototrophs<-rbind(occurrence_counts_phototrophs,data.table(group="Pyramimonadaceae",samples_per_class=Pyramimonadaceae_tb_occur_len))
+
+occurrence_counts_phototrophs
+#row.names(occurrence_counts_phototrophs)<-occurrence_counts_phototrophs$group
+occurrence_counts_phototrophs<-as.data.frame(occurrence_counts_phototrophs)
+```
+
+\
+**Absolute values**
+
+```{r aggregate_non.raref_v2, echo=FALSE, results="hide", warning=FALSE}
+class_summary_reads_per_class<-aggregate(rowSums(tb18_phototrophs[1:91]), list(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif), sum)
+# count the different groups
+
+class_summary_otus_per_class<-aggregate(rowSums(tb18_phototrophs[1:91]), list(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif), length)
+
+## READS PER CLASS ##
+attach(class_summary_reads_per_class)
+class_summary_reads_per_class_order<-class_summary_reads_per_class[order(-x),]
+detach(class_summary_reads_per_class)
+class_summary_reads_per_class_order
+
+#fix column names
+row.names(class_summary_reads_per_class_order)<-class_summary_reads_per_class_order[,1]
+class_summary_reads_per_class_order<-class_summary_reads_per_class_order[c(-1)]
+colnames(class_summary_reads_per_class_order)<-c("reads_per_class")
+
+## OTUs PER CLASS ##
+attach(class_summary_otus_per_class)
+class_summary_otus_per_class_order<-class_summary_otus_per_class[order(-x),]
+detach(class_summary_otus_per_class)
+class_summary_otus_per_class_order
+
+row.names(class_summary_otus_per_class_order)<-class_summary_otus_per_class_order[,1]
+class_summary_otus_per_class_order<-class_summary_otus_per_class_order[c(-1)]
+colnames(class_summary_otus_per_class_order)<-c("OTUs_per_class")
+
+#class_summary_reads<-aggregate(sum~class, data=otutab_full_wTax, FUN="sum") 
+# sum reads different groups
+```
+
+```{r create_table_merging_#OTUs_#reads_#samples_non.raref_v2, echo=FALSE, warning=F}
+tb18S_OTUs_reads_samples <- merge(class_summary_reads_per_class_order, class_summary_otus_per_class_order, by="row.names")
+
+row.names(tb18S_OTUs_reads_samples)<-tb18S_OTUs_reads_samples[,1]
+
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[,-1]
+colnames(tb18S_OTUs_reads_samples)<-c("reads_per_class","OTUs_per_class")
+#tb18S_OTUs_reads_samples[1:5,1:2]
+
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[order(tb18S_OTUs_reads_samples$reads_per_class, tb18S_OTUs_reads_samples$OTUs_per_class, decreasing = T), c(1,2)]
+
+#add no. of samples per class
+tb18S_OTUs_reads_samples<-merge(tb18S_OTUs_reads_samples, occurrence_counts_phototrophs, by.x="row.names", by.y="group", all.x=TRUE)
+
+row.names(tb18S_OTUs_reads_samples)<-tb18S_OTUs_reads_samples[,1]
+tb18S_OTUs_reads_samples<-tb18S_OTUs_reads_samples[,-1]
+tb18S_OTUs_reads_samples
+```
+
+
+\
+**Relative values**
+
+```{r OTUs_vs_reads_relative_values_18S_non.raref_v2, echo=FALSE, warning=F}
+
+tb18S_OTUs_reads_samples_rel_abund <- tb18S_OTUs_reads_samples
+
+tb18S_OTUs_reads_samples_rel_abund$reads_per_class<-(tb18S_OTUs_reads_samples_rel_abund$reads_per_class*100)/colSums(tb18S_OTUs_reads_samples)[1]
+tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class<-(tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class*100)/colSums(tb18S_OTUs_reads_samples)[2]
+tb18S_OTUs_reads_samples_rel_abund$samples_per_class<-(tb18S_OTUs_reads_samples_rel_abund$samples_per_class*100)/91
+
+colSums(tb18S_OTUs_reads_samples_rel_abund)
+tb18S_OTUs_reads_samples_rel_abund
+```
+
+\
+\
+
+Reads per class vs. OTUs per class:
+
+```{r OTUs_vs_reads_18S_v2_non.raref_v2, echo=FALSE, warnings=F, warning=F}
+ggplot(tb18S_OTUs_reads_samples_rel_abund) +
+  geom_point(aes(OTUs_per_class, reads_per_class)) +
+  geom_text_repel(aes(OTUs_per_class, reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 3, box.padding = unit(0.1, "lines"), point.padding = unit(0.02, 'lines')) + labs(title="[1] Reads per class vs. OTUs per class", x="\nTP-miTags-18S OTUs (%)", y="TP-miTags-18S reads (%)\n") + scale_x_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100))  + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+```
+
+\
+\
+
+Reads per class vs. samples in which they occurr:
+
+```{r reads_vs_samples_18S_non.raref_v2, echo=FALSE, warning=F}
+ggplot(tb18S_OTUs_reads_samples_rel_abund) +
+  geom_point(aes(samples_per_class,reads_per_class)) +
+  geom_text_repel(aes(samples_per_class,reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 8, box.padding = unit(0.1, "lines"), point.padding = unit(0.2, 'lines')) + scale_x_continuous(limits = c(0, 116), breaks=c(25,50,75,100)) + labs(title="[2] Reads per class vs. samples in which they occur", x="\nTP-miTags-18S samples (%)", y="TP-miTags-18S reads (%)\n") + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+```
+
+\
+\
+\
+\
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+**OLD VERSION**
 
 
 ## 1.6) Taxonomic composition analysis
@@ -590,7 +2073,7 @@ dim(tb18_phototrophs)
 #create a table per group and count in how many samples they occur. 
 Dinophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Dinophyceae"),]
 Dinophyceae_tb[1:5,1:5]
-Dinophyceae_tb_occur <- Dinophyceae_tb[,1:92]
+Dinophyceae_tb_occur <- Dinophyceae_tb[,1:91]
 Dinophyceae_tb_occur[1:5,1:5]
 dim(Dinophyceae_tb_occur)
 
@@ -599,136 +2082,136 @@ length(Dinophyceae_tb_occur[,colSums(Dinophyceae_tb_occur) > 0])
 #length(Dinophyceae_tb_samples[which(colSums(Dinophyceae_tb_occur) != 0)])
 
 Prasinophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "other_Prasinophyceae"),]
-Prasinophyceae_tb_occur <- Prasinophyceae_tb[,1:92]
+Prasinophyceae_tb_occur <- Prasinophyceae_tb[,1:91]
 length(Prasinophyceae_tb_occur[,colSums(Prasinophyceae_tb_occur) > 0])
 
 Chrysophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Chrysophyceae"),]
-Chrysophyceae_tb_occur <- Chrysophyceae_tb[,1:92]
+Chrysophyceae_tb_occur <- Chrysophyceae_tb[,1:91]
 length(Chrysophyceae_tb_occur[,colSums(Chrysophyceae_tb_occur) > 0])
 
 Pelagophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Pelagophyceae"),]
-Pelagophyceae_tb_occur <- Pelagophyceae_tb[,1:92]
+Pelagophyceae_tb_occur <- Pelagophyceae_tb[,1:91]
 length(Pelagophyceae_tb_occur[,colSums(Pelagophyceae_tb_occur) > 0])
 
 Dictyochophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Dictyochophyceae"),]
-Dictyochophyceae_tb_occur <- Dictyochophyceae_tb[,1:92]
+Dictyochophyceae_tb_occur <- Dictyochophyceae_tb[,1:91]
 length(Dictyochophyceae_tb_occur[,colSums(Dictyochophyceae_tb_occur) > 0])
 
 Cryptomonadales_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Cryptophyceae"),]
-Cryptomonadales_tb_occur <- Cryptomonadales_tb[,1:92]
+Cryptomonadales_tb_occur <- Cryptomonadales_tb[,1:91]
 length(Cryptomonadales_tb_occur[,colSums(Cryptomonadales_tb_occur) > 0])
 
 Bacillariophyta_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Bacillariophyceae"),]
-Bacillariophyta_tb_occur <- Bacillariophyta_tb[,1:92]
+Bacillariophyta_tb_occur <- Bacillariophyta_tb[,1:91]
 length(Bacillariophyta_tb_occur[,colSums(Bacillariophyta_tb_occur) > 0])
 
 Chlorarachniophyta_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Chlorarachniophyceae"),]
-Chlorarachniophyta_tb_occur <- Chlorarachniophyta_tb[,1:92]
+Chlorarachniophyta_tb_occur <- Chlorarachniophyta_tb[,1:91]
 length(Chlorarachniophyta_tb_occur[,colSums(Chlorarachniophyta_tb_occur) > 0])
 
 Bolidophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Bolidophyceae"),]
-Bolidophyceae_tb_occur <- Bolidophyceae_tb[,1:92]
+Bolidophyceae_tb_occur <- Bolidophyceae_tb[,1:91]
 length(Bolidophyceae_tb_occur[,colSums(Bolidophyceae_tb_occur) > 0])
 
 Pinguiochysidales_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Pinguiophyceae"),]
-Pinguiochysidales_tb_occur <- Pinguiochysidales_tb[,1:92]
+Pinguiochysidales_tb_occur <- Pinguiochysidales_tb[,1:91]
 length(Pinguiochysidales_tb_occur[,colSums(Pinguiochysidales_tb_occur) > 0])
 
 Prymnesiophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Prymnesiophyceae"),]
-Prymnesiophyceae_tb_occur <- Prymnesiophyceae_tb[,1:92]
+Prymnesiophyceae_tb_occur <- Prymnesiophyceae_tb[,1:91]
 length(Prymnesiophyceae_tb_occur[,colSums(Prymnesiophyceae_tb_occur) > 0])
 
 Mamiellophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Mamiellophyceae"),]
-Mamiellophyceae_tb_occur <- Mamiellophyceae_tb[,1:92]
+Mamiellophyceae_tb_occur <- Mamiellophyceae_tb[,1:91]
 length(Mamiellophyceae_tb_occur[,colSums(Mamiellophyceae_tb_occur) > 0])
 
 Eustigmatales_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Eustigmatophyceae"),]
-Eustigmatales_tb_occur <- Eustigmatales_tb[,1:92]
+Eustigmatales_tb_occur <- Eustigmatales_tb[,1:91]
 length(Eustigmatales_tb_occur[,colSums(Eustigmatales_tb_occur) > 0])
 
 Chlorophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Chlorophyceae"),]
-Chlorophyceae_tb_occur <- Chlorophyceae_tb[,1:92]
+Chlorophyceae_tb_occur <- Chlorophyceae_tb[,1:91]
 length(Chlorophyceae_tb_occur[,colSums(Chlorophyceae_tb_occur) > 0])
 
 Ulvophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Ulvophyceae"),]
-Ulvophyceae_tb_occur <- Ulvophyceae_tb[,1:92]
+Ulvophyceae_tb_occur <- Ulvophyceae_tb[,1:91]
 length(Ulvophyceae_tb_occur[,colSums(Ulvophyceae_tb_occur) > 0])
 
 Raphydophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Raphydophyceae"),]
-Raphydophyceae_tb_occur <- Raphydophyceae_tb[,1:92]
+Raphydophyceae_tb_occur <- Raphydophyceae_tb[,1:91]
 length(Raphydophyceae_tb_occur[,colSums(Raphydophyceae_tb_occur) > 0])
 
 Trebouxiophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Trebouxiophyceae"),]
-Trebouxiophyceae_tb_occur <- Trebouxiophyceae_tb[,1:92]
+Trebouxiophyceae_tb_occur <- Trebouxiophyceae_tb[,1:91]
 length(Trebouxiophyceae_tb_occur[,colSums(Trebouxiophyceae_tb_occur) > 0])
 
 Phaeophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Phaeophyceae"),]
-Phaeophyceae_tb_occur <- Phaeophyceae_tb[,1:92]
+Phaeophyceae_tb_occur <- Phaeophyceae_tb[,1:91]
 length(Phaeophyceae_tb_occur[,colSums(Phaeophyceae_tb_occur) > 0])
 
 Phaeothamniophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Phaeothamniophyceae"),]
-Phaeothamniophyceae_tb_occur <- Phaeothamniophyceae_tb[,1:92]
+Phaeothamniophyceae_tb_occur <- Phaeothamniophyceae_tb[,1:91]
 length(Phaeothamniophyceae_tb_occur[,colSums(Phaeothamniophyceae_tb_occur) > 0])
 
 Xanthophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Xanthophyceae"),]
-Xanthophyceae_tb_occur <- Xanthophyceae_tb[,1:92]
+Xanthophyceae_tb_occur <- Xanthophyceae_tb[,1:91]
 length(Xanthophyceae_tb_occur[,colSums(Xanthophyceae_tb_occur) > 0])
 
 Chlorodendrophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Chlorodendrophyceae"),]
-Chlorodendrophyceae_tb_occur <- Chlorodendrophyceae_tb[,1:92]
+Chlorodendrophyceae_tb_occur <- Chlorodendrophyceae_tb[,1:91]
 length(Chlorodendrophyceae_tb_occur[,colSums(Chlorodendrophyceae_tb_occur) > 0])
 
 IncertaeSedis_Archaeplastida_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "IncertaeSedis_Archaeplastida"),]
-IncertaeSedis_Archaeplastida_tb_occur <- IncertaeSedis_Archaeplastida_tb[,1:92]
+IncertaeSedis_Archaeplastida_tb_occur <- IncertaeSedis_Archaeplastida_tb[,1:91]
 length(IncertaeSedis_Archaeplastida_tb_occur[,colSums(IncertaeSedis_Archaeplastida_tb_occur) > 0])
 
 Nephroselmidophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Nephroselmidophyceae"),]
-Nephroselmidophyceae_tb_occur <- Nephroselmidophyceae_tb[,1:92]
+Nephroselmidophyceae_tb_occur <- Nephroselmidophyceae_tb[,1:91]
 length(Nephroselmidophyceae_tb_occur[,colSums(Nephroselmidophyceae_tb_occur) > 0])
 
 Pavlovophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Pavlovophyceae"),]
-Pavlovophyceae_tb_occur <- Pavlovophyceae_tb[,1:92]
+Pavlovophyceae_tb_occur <- Pavlovophyceae_tb[,1:91]
 length(Pavlovophyceae_tb_occur[,colSums(Pavlovophyceae_tb_occur) > 0])
 
 Rhodophyceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Rhodophyceae"),]
-Rhodophyceae_tb_occur <- Rhodophyceae_tb[,1:92]
+Rhodophyceae_tb_occur <- Rhodophyceae_tb[,1:91]
 length(Rhodophyceae_tb_occur[,colSums(Rhodophyceae_tb_occur) > 0])
 
 Rappemonads_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Rappemonads"),]
-Rappemonads_tb_occur <- Rappemonads_tb[,1:92]
+Rappemonads_tb_occur <- Rappemonads_tb[,1:91]
 length(Rappemonads_tb_occur[,colSums(Rappemonads_tb_occur) > 0])
 
 MOCH_1_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "MOCH-1"),]
-MOCH_1_tb_occur <- MOCH_1_tb[,1:92]
+MOCH_1_tb_occur <- MOCH_1_tb[,1:91]
 length(MOCH_1_tb_occur[,colSums(MOCH_1_tb_occur) > 0])
 
 MOCH_2_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "MOCH-2"),]
-MOCH_2_tb_occur <- MOCH_2_tb[,1:92]
+MOCH_2_tb_occur <- MOCH_2_tb[,1:91]
 length(MOCH_2_tb_occur[,colSums(MOCH_2_tb_occur) > 0])
 
 MOCH_5_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "MOCH-5"),]
-MOCH_5_tb_occur <- MOCH_5_tb[,1:92]
+MOCH_5_tb_occur <- MOCH_5_tb[,1:91]
 length(MOCH_5_tb_occur[,colSums(MOCH_5_tb_occur) > 0])
 
 Prasinophyceae_clade_VII_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Prasinophyceae_clade-VII"),]
-Prasinophyceae_clade_VII_tb_occur <- Prasinophyceae_clade_VII_tb[,1:92]
+Prasinophyceae_clade_VII_tb_occur <- Prasinophyceae_clade_VII_tb[,1:91]
 length(Prasinophyceae_clade_VII_tb_occur[,colSums(Prasinophyceae_clade_VII_tb_occur) > 0])
 
 Prasinophyceae_clade_IX_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Prasinophyceae_clade-IX"),]
-Prasinophyceae_clade_IX_tb_occur <- Prasinophyceae_clade_IX_tb[,1:92]
+Prasinophyceae_clade_IX_tb_occur <- Prasinophyceae_clade_IX_tb[,1:91]
 length(Prasinophyceae_clade_IX_tb_occur[,colSums(Prasinophyceae_clade_IX_tb_occur) > 0])
 
 Pyramimonadaceae_tb <- tb18_phototrophs[which(tb18_phototrophs$classif == "Pyramimonadaceae"),]
-Pyramimonadaceae_tb_occur <- Pyramimonadaceae_tb[,1:92]
+Pyramimonadaceae_tb_occur <- Pyramimonadaceae_tb[,1:91]
 length(Pyramimonadaceae_tb_occur[,colSums(Pyramimonadaceae_tb_occur) > 0])
 ```
 
 
 ```{r aggregate, echo=FALSE, results="hide", warning=FALSE}
-class_summary_reads_per_class<-aggregate(rowSums(tb18_phototrophs[1:92]), list(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif), sum)
+class_summary_reads_per_class<-aggregate(rowSums(tb18_phototrophs[1:91]), list(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif), sum)
 # count the different groups
 
-class_summary_otus_per_class<-aggregate(rowSums(tb18_phototrophs[1:92]), list(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif), length)
+class_summary_otus_per_class<-aggregate(rowSums(tb18_phototrophs[1:91]), list(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif), length)
 
 ## READS PER CLASS ##
 attach(class_summary_reads_per_class)
@@ -790,7 +2273,7 @@ tb18S_OTUs_reads_samples_rel_abund <- tb18S_OTUs_reads_samples
 
 tb18S_OTUs_reads_samples_rel_abund$reads_per_class<-(tb18S_OTUs_reads_samples_rel_abund$reads_per_class*100)/colSums(tb18S_OTUs_reads_samples)[1]
 tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class<-(tb18S_OTUs_reads_samples_rel_abund$OTUs_per_class*100)/colSums(tb18S_OTUs_reads_samples)[2]
-tb18S_OTUs_reads_samples_rel_abund$samples_per_class<-(tb18S_OTUs_reads_samples_rel_abund$samples_per_class*100)/92
+tb18S_OTUs_reads_samples_rel_abund$samples_per_class<-(tb18S_OTUs_reads_samples_rel_abund$samples_per_class*100)/91
 
 colSums(tb18S_OTUs_reads_samples_rel_abund)
 #tb18S_OTUs_reads_samples_rel_abund <- tb18S_OTUs_reads_samples_rel_abund[-23,]
@@ -823,7 +2306,7 @@ ggplot(tb18S_OTUs_reads_samples_rel_abund) +
 ### 1.6.2) Non-normalized data
 
 ```{r merge_tables_non.norm_18S, echo=FALSE}
-tb18_tax_occur_min49975_t<-tb18_tax_occur_min49975_no_cero
+tb18_tax_occur_min49975_t<-tb18_tax_occur_min49975
 tb18_min49975_tax<-merge(tb18_tax_occur_min49975_t,tb18_class, by="row.names")
 
 dim(tb18_min49975_tax)
@@ -860,7 +2343,7 @@ dim(tb18_phototrophs_non.norm)
 #create a table per group and count in how many samples they occur. 
 Dinophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Dinophyceae"),]
 Dinophyceae_tb[1:5,1:5]
-Dinophyceae_tb_occur <- Dinophyceae_tb[,1:92]
+Dinophyceae_tb_occur <- Dinophyceae_tb[,1:91]
 Dinophyceae_tb_occur[1:5,1:5]
 dim(Dinophyceae_tb_occur)
 
@@ -869,75 +2352,75 @@ length(Dinophyceae_tb_occur[,colSums(Dinophyceae_tb_occur) > 0])
 length(Dinophyceae_tb_occur[,colSums(Dinophyceae_tb_occur) > 0])
 
 Prasinophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Prasinophyceae"),]
-Prasinophyceae_tb_occur <- Prasinophyceae_tb[,1:92]
+Prasinophyceae_tb_occur <- Prasinophyceae_tb[,1:91]
 length(Prasinophyceae_tb_occur[,colSums(Prasinophyceae_tb_occur) > 0])
 
 Chrysophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Chrysophyceae"),]
-Chrysophyceae_tb_occur <- Chrysophyceae_tb[,1:92]
+Chrysophyceae_tb_occur <- Chrysophyceae_tb[,1:91]
 length(Chrysophyceae_tb_occur[,colSums(Chrysophyceae_tb_occur) > 0])
 
 Pelagophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Pelagophyceae"),]
-Pelagophyceae_tb_occur <- Pelagophyceae_tb[,1:92]
+Pelagophyceae_tb_occur <- Pelagophyceae_tb[,1:91]
 length(Pelagophyceae_tb_occur[,colSums(Pelagophyceae_tb_occur) > 0])
 
 Dictyochophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Dictyochophyceae"),]
-Dictyochophyceae_tb_occur <- Dictyochophyceae_tb[,1:92]
+Dictyochophyceae_tb_occur <- Dictyochophyceae_tb[,1:91]
 length(Dictyochophyceae_tb_occur[,colSums(Dictyochophyceae_tb_occur) > 0])
 
 Cryptomonadales_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Cryptomonadales"),]
-Cryptomonadales_tb_occur <- Cryptomonadales_tb[,1:92]
+Cryptomonadales_tb_occur <- Cryptomonadales_tb[,1:91]
 length(Cryptomonadales_tb_occur[,colSums(Cryptomonadales_tb_occur) > 0])
 
 Bacillariophyta_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Bacillariophyta"),]
-Bacillariophyta_tb_occur <- Bacillariophyta_tb[,1:92]
+Bacillariophyta_tb_occur <- Bacillariophyta_tb[,1:91]
 length(Bacillariophyta_tb_occur[,colSums(Bacillariophyta_tb_occur) > 0])
 
 Chlorarachniophyta_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Chlorarachniophyta"),]
-Chlorarachniophyta_tb_occur <- Chlorarachniophyta_tb[,1:92]
+Chlorarachniophyta_tb_occur <- Chlorarachniophyta_tb[,1:91]
 length(Chlorarachniophyta_tb_occur[,colSums(Chlorarachniophyta_tb_occur) > 0])
 
 Bolidophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Bolidophyceae"),]
-Bolidophyceae_tb_occur <- Bolidophyceae_tb[,1:92]
+Bolidophyceae_tb_occur <- Bolidophyceae_tb[,1:91]
 length(Bolidophyceae_tb_occur[,colSums(Bolidophyceae_tb_occur) > 0])
 
 Pinguiochysidales_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Pinguiochysidales"),]
-Pinguiochysidales_tb_occur <- Pinguiochysidales_tb[,1:92]
+Pinguiochysidales_tb_occur <- Pinguiochysidales_tb[,1:91]
 length(Pinguiochysidales_tb_occur[,colSums(Pinguiochysidales_tb_occur) > 0])
 
 Prymnesiophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Prymnesiophyceae"),]
-Prymnesiophyceae_tb_occur <- Prymnesiophyceae_tb[,1:92]
+Prymnesiophyceae_tb_occur <- Prymnesiophyceae_tb[,1:91]
 length(Prymnesiophyceae_tb_occur[,colSums(Prymnesiophyceae_tb_occur) > 0])
 
 Mamiellophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Mamiellophyceae"),]
-Mamiellophyceae_tb_occur <- Mamiellophyceae_tb[,1:92]
+Mamiellophyceae_tb_occur <- Mamiellophyceae_tb[,1:91]
 length(Mamiellophyceae_tb_occur[,colSums(Mamiellophyceae_tb_occur) > 0])
 
 Eustigmatales_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Eustigmatales"),]
-Eustigmatales_tb_occur <- Eustigmatales_tb[,1:92]
+Eustigmatales_tb_occur <- Eustigmatales_tb[,1:91]
 length(Eustigmatales_tb_occur[,colSums(Eustigmatales_tb_occur) > 0])
 
 Chlorophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Chlorophyceae"),]
-Chlorophyceae_tb_occur <- Chlorophyceae_tb[,1:92]
+Chlorophyceae_tb_occur <- Chlorophyceae_tb[,1:91]
 length(Chlorophyceae_tb_occur[,colSums(Chlorophyceae_tb_occur) > 0])
 
 Ulvophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Ulvophyceae"),]
-Ulvophyceae_tb_occur <- Ulvophyceae_tb[,1:92]
+Ulvophyceae_tb_occur <- Ulvophyceae_tb[,1:91]
 length(Ulvophyceae_tb_occur[,colSums(Ulvophyceae_tb_occur) > 0])
 
 Raphydophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Raphydophyceae"),]
-Raphydophyceae_tb_occur <- Raphydophyceae_tb[,1:92]
+Raphydophyceae_tb_occur <- Raphydophyceae_tb[,1:91]
 length(Raphydophyceae_tb_occur[,colSums(Raphydophyceae_tb_occur) > 0])
 
 Trebouxiophyceae_tb <- tb18_phototrophs_non.norm[which(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif == "Trebouxiophyceae"),]
-Trebouxiophyceae_tb_occur <- Trebouxiophyceae_tb[,1:92]
+Trebouxiophyceae_tb_occur <- Trebouxiophyceae_tb[,1:91]
 length(Trebouxiophyceae_tb_occur[,colSums(Trebouxiophyceae_tb_occur) > 0])
 ```
 
 ```{r aggregate_non.norm_18S, echo=FALSE}
-class_summary_reads_per_class_non.norm<-aggregate(rowSums(tb18_phototrophs_non.norm[1:92]), list(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif), sum)
+class_summary_reads_per_class_non.norm<-aggregate(rowSums(tb18_phototrophs_non.norm[1:91]), list(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif), sum)
 # count the different groups
 
-class_summary_otus_per_class_non.norm<-aggregate(rowSums(tb18_phototrophs_non.norm[1:92]), list(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif), length)
+class_summary_otus_per_class_non.norm<-aggregate(rowSums(tb18_phototrophs_non.norm[1:91]), list(tb18_phototrophs_non.norm$SILVA_plus_MAS_plus_BM_classif), length)
 
 ## READS PER CLASS ##
 attach(class_summary_reads_per_class_non.norm)
@@ -987,7 +2470,7 @@ tb18S_OTUs_reads_samples_rel_abund_non.norm <- tb18S_OTUs_reads_samples_non.norm
 
 tb18S_OTUs_reads_samples_rel_abund_non.norm$reads_per_class<-(tb18S_OTUs_reads_samples_rel_abund_non.norm$reads_per_class*100)/colSums(tb18S_OTUs_reads_samples_non.norm)[1]
 tb18S_OTUs_reads_samples_rel_abund_non.norm$OTUs_per_class<-(tb18S_OTUs_reads_samples_rel_abund_non.norm$OTUs_per_class*100)/colSums(tb18S_OTUs_reads_samples_non.norm)[2]
-tb18S_OTUs_reads_samples_rel_abund_non.norm$samples_per_class<-(tb18S_OTUs_reads_samples_rel_abund_non.norm$samples_per_class*100)/92
+tb18S_OTUs_reads_samples_rel_abund_non.norm$samples_per_class<-(tb18S_OTUs_reads_samples_rel_abund_non.norm$samples_per_class*100)/91
 
 colSums(tb18S_OTUs_reads_samples_rel_abund_non.norm)
 tb18S_OTUs_reads_samples_rel_abund_non.norm
