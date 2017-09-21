@@ -10,7 +10,7 @@ species_richness_rarefaction2	dim	tb18_tax_occur_ss49975
 species_richness_rarefaction3	rowSums	tb18_tax_occur_ss49975
 species_richness_rarefaction4	==	colSums	length	tb18_tax_occur_ss49975	which
 species_richness_rarefaction5	==	colSums	dim	mixedorder	row.names	tb18_tax_occur_ss49975	which
-dataset_summary	dim	tb18_tax	tb18_tax_occur	tb18_tax_occur_ss49975_no_cero
+dataset_summary	dim	tb18_tax	tb18_tax_occur	tb18_tax_occur_min49975	tb18_tax_occur_ss49975_no_cero
 shannon_index1	diversity	tb18_tax_occur_ss49975_no_cero
 shannon_index2	boxplot	plot	sort	tb18_tax_occur_ss49975_div
 richness_otu_no1	specnumber	tb18_tax_occur_ss49975_no_cero
@@ -20,32 +20,32 @@ richness_otu_no4	OTUs_per_sample_18S_tax_occur_ss49975	boxplot	plot	sort
 pielou_index_of_evenness1	OTUs_per_sample_18S_tax_occur_ss49975	log	tb18_tax_occur_ss49975_div
 pielou_index_of_evenness2	boxplot	pielou_evenness_18S_tax_occur_ss49975	plot	sort
 OTUs_overall_abundance	T	colSums	head	sort	tb18_tax_occur_ss49975_no_cero
-OTUs_overall_abundance2	T	colSums	log	plot	sort	tb18_tax_occur_ss49975_no_cero
+OTUs_overall_abundance2	:=	T	V1	aes	as.data.table	geom_point	ggplot	labs	nrow	order	rank	rowSums	scale_y_log10	t	tb18_tax_occur_ss49975_no_cero	theme_bw
 radfit	colSums	plot	radfit	tb18_tax_occur_min49975_t
 preston_model1	colSums	plot	prestonfit	tb18_tax_occur_min49975_t	veiledspec
 preston_model2	colSums	lines	plot	prestondistr	tb18_tax_occur_min49975_t	tb18_tax_occur_ss49975_prestonfit	veiledspec
-rarefraction_curve	as.matrix	colSums	t	tb18_tax_occur_ss49975_no_cero
+rarefraction_curve	as.matrix	colSums	rarecurve	t	tb18_tax_occur	tb18_tax_occur_ss49975_no_cero
 beta_div1	boxplot	tb18_tax_occur_ss49975_no_cero	vegdist
 beta_div2	hclust	plot	tb18_tax_occur_ss49975_no_cero.bray
 monoNMDS	monoMDS	plot	tb18_tax_occur_ss49975_no_cero.bray
 metaNMDS	metaMDS	plot	tb18_tax_occur_ss49975_no_cero.bray
 load_geo_data	$	:=	T	as.matrix	create.lats	data.table	dim	earth.dist	head	mixedorder	order	paste	read.table	row.names	row.names<-	st_name
-working_datasets1	dim	tb18_tax_occur_ss49975_no_cero
+working_datasets1	as.matrix	dim	geo_distances_MP_18S	tb18_tax_occur_ss49975_no_cero	vegdist
 working_datasets2	as.matrix	dim
 working_datasets3	dim	geo_distances_MP_18S
 working_datasets4	geo_distances_MP_18S	plot	tb18_tax_occur_ss49975_no_cero.bray
 mantel_correlogram1	geo_distances_MP_18S	mantel	tb18_tax_occur_ss49975_no_cero.bray
-mantel_correlogram2	geo_distances_MP_18S	max
+mantel_correlogram2	geo_distances_MP_18S	max	min
 mantel_correlogram3	geo_distances_MP_18S	min
 mantel_correlogram4	geo_distances_MP_18S	mantel.correlog	plot	seq	tb18_tax_occur_ss49975_no_cero.bray
 OTUs_mean_relative_abund	as.data.frame	colSums	head	rowMeans	t	tb18_tax_occur_ss49975_no_cero
 OTUs_occurence	>	[<-	as.data.frame	rowSums	str	tb18_tax_occur_ss49975_no_cero_t.rabund
 merge_rabund_peroccur	c	colnames<-	merge	row.names<-	tb18_tax_occur_ss49975_no_cero_t.rabund_means	tb18_tax_occur_ss49975_no_cero_t.rabund_means.occurence_perc
 abund_vs_occurence_table	$	abline	otu_tb18_ss49975_rabund_percoccur	plot
-abundant_OTUs	$	>	T	c	cbind	dim	merge	order	otu_tb18_ss49975_rabund_percoccur	row.names	tb18_class
+abundant_OTUs	$	>	T	c	cbind	merge	order	otu_tb18_ss49975_rabund_percoccur	row.names	tb18_class
 abundant_OTUs2	nrow	otu_tb18_ss49975_rabund_percoccur	tb18_ss49975_abundant_sorted
-select_cosmopolitan	$	>	T	c	cbind	dim	merge	order	otu_tb18_ss49975_rabund_percoccur	row.names	tb18_class_prov
-percentage_cosmopolitan	nrow	otu_tb18_ss49975_cosmop_sorted	otu_tb18_ss49975_rabund_percoccur
+select_cosmopolitan	$	>	T	c	cbind	merge	order	otu_tb18_ss49975_rabund_percoccur	row.names	tb18_class_prov
+percentage_cosmopolitan	nrow	otu_tb18_ss49975_cosmop_sorted_prov	otu_tb18_ss49975_rabund_percoccur
 rare_OTUs	$	&	<	>	nrow	otu_tb18_ss49975_rabund_percoccur
 merge_tables	$	$<-	F	[<-	as.character	as.numeric	dim	merge	order	rownames	rownames<-	sapply	strsplit	t	tb18_class	tb18_tax_occur_ss49975_no_cero	write.table
 select_phototrophs	!=	$	dim	tb18_ss49975_tax_sorted	which
@@ -98,7 +98,7 @@ OTUs_occurence_v2	>	[<-	as.data.frame	rowSums	str	tb18_tax_occur_ss49975_no_cero
 merge_rabund_peroccur_v2	c	colnames<-	merge	row.names<-	tb18_tax_occur_ss49975_no_cero_t.rabund_means	tb18_tax_occur_ss49975_no_cero_t.rabund_means.occurence_perc
 abund_vs_occurence_table_v2	$	abline	otu_tb18_ss49975_rabund_percoccur	plot
 abundant_OTUs_v2	$	>	T	c	cbind	dim	merge	order	otu_tb18_ss49975_rabund_percoccur	row.names	tb18_class
-abundant_OTUs2_v2	nrow	otu_tb18_ss49975_rabund_percoccur	tb18_ss49975_abundant_sorted
+abundant_OTUs2_v2	nrow	otu_tb18_ss49975_rabund_percoccur	tb18_ss49975_abundant_sorted_prov
 select_cosmopolitan_v2	$	>	T	c	cbind	dim	merge	order	otu_tb18_ss49975_rabund_percoccur	row.names	tb18_class_prov
 percentage_cosmopolitan_v2	nrow	otu_tb18_ss49975_cosmop_sorted	otu_tb18_ss49975_rabund_percoccur
 rare_OTUs_v2	$	&	<	>	nrow	otu_tb18_ss49975_rabund_percoccur
@@ -136,3 +136,7 @@ create_table_merging_#OTUs_#reads_#samples_non.raref_v2	$	T	c	class_summary_otus
 OTUs_vs_reads_relative_values_18S_non.raref_v2	$	$<-	colSums	tb18S_OTUs_reads_samples
 OTUs_vs_reads_18S_v2_non.raref_v2	OTUs_per_class	aes	c	element_text	geom_point	geom_text_repel	ggplot	labs	reads_per_class	rownames	scale_x_log10	scale_y_log10	tb18S_OTUs_reads_samples	tb18S_OTUs_reads_samples_rel_abund	theme	unit
 reads_vs_samples_18S_non.raref_v2	aes	c	element_text	geom_point	geom_text_repel	ggplot	labs	reads_per_class	rownames	samples_per_class	scale_x_continuous	scale_y_log10	tb18S_OTUs_reads_samples	tb18S_OTUs_reads_samples_rel_abund	theme	unit
+dim_merge2_non.raref	!=	$	nrow	tb18_min49975_tax_sorted	which
+dim_merge2.2_non.raref	colSums	sum	tb18_min49975_tax_sorted	tb18_phototrophs
+dim_merge3_non.raref	$	$<-	==	[<-	as.character	is.na	nrow	which
+dim_merge3.2_non.raref	colSums	sum	tb18_min49975_tax_sorted	tb18_non.phototrophs
