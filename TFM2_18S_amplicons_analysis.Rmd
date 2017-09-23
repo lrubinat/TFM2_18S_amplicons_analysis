@@ -627,6 +627,7 @@ Number and proportion (%) of OTUs of phototrophic groups:
 ```{r dim_merge2_v2, echo=F}
 #selection of phototrophs:
 tb18_phototrophs <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif != "NA"),]
+tb18_phototrophs <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif != ""),]
 
 nrow(tb18_phototrophs)
 nrow(tb18_phototrophs)*100/nrow(tb18_ss49975_tax_sorted)
@@ -649,6 +650,7 @@ Number and proportion (%) of OTUs of non-phototrophic groups:
 #translate "NA" to "Heterotrophs":
 tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif<-as.character(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif)
 tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif[which(is.na(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif))]<-"Heterotrophs"
+tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "")]<-"Heterotrophs"
 
 #selection of non.phototrophs:
 tb18_non.phototrophs <- tb18_ss49975_tax_sorted[which(tb18_ss49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Heterotrophs"),]
@@ -1243,6 +1245,7 @@ Number and proportion (%) of OTUs of phototrophic groups:
 ```{r dim_merge2_non.raref, echo=F}
 #selection of phototrophs:
 tb18_phototrophs <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif != "NA"),]
+tb18_phototrophs <- tb18_phototrophs[which(tb18_phototrophs$SILVA_plus_MAS_plus_BM_classif != ""),]
 
 nrow(tb18_phototrophs)
 nrow(tb18_phototrophs)*100/nrow(tb18_min49975_tax_sorted)
@@ -1265,6 +1268,8 @@ Number and proportion (%) of OTUs of non-phototrophic groups:
 #translate "NA" to "Heterotrophs":
 tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif<-as.character(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif)
 tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif[which(is.na(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif))]<-"Heterotrophs"
+tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "")]<-"Heterotrophs"
+
 
 #selection of non.phototrophs:
 tb18_non.phototrophs <- tb18_min49975_tax_sorted[which(tb18_min49975_tax_sorted$SILVA_plus_MAS_plus_BM_classif == "Heterotrophs"),]
