@@ -76,7 +76,7 @@ dim(tb18_tax_occur) #46690   122
 tb18_tax_occur[1:5,1:5]
 ```
 
-The dataset "Malaspina 18S iTags" contains reads from **122 samples of Malaspina**. On average, each sample contains 126100 OTUs:
+The dataset "Malaspina 18S iTags" contains reads from **122 samples of Malaspina**. On average, each sample contains 126100 reads:
 
 ```{r summary, echo=FALSE, message=FALSE, warning=F}
 amplicons_per_sample_tb18<-colSums(tb18_tax_occur)
@@ -144,7 +144,7 @@ plot(sort(colSums(tb18_tax_occur_min49975)), pch=19, xlab="sample no.", ylab="re
 ## 1.2) Normalization
 
 \
-In order to keep as many samples as possible, we rarefy at **49975 reads per sample**. By that, we loose 31 samples, and after removing the exluded samples in the 16S dataset (to make them comparable), we end up with a **normalized dataset containing 43 samples and 5669 OTUs**.
+In order to keep as many samples as possible, we rarefy at **49975 reads per sample**. By that, we loose 31 samples, and after removing the exluded samples in the 16S dataset (to make them comparable), we end up with a **normalized dataset containing 43 samples and 38338 OTUs**.
 
 
 ``` {r species_richness_rarefaction1, echo=FALSE, results="hide"}
@@ -168,7 +168,7 @@ rowSums(tb18_tax_occur_ss49975)
 ```{r species_richness_rarefaction4, echo=F, results="hide"}
 #OTUs we loose in the new table:
 
-length(which(colSums(tb18_tax_occur_ss49975)==0)) #8045
+length(which(colSums(tb18_tax_occur_ss49975)==0)) #8352
 ```
 
 ```{r species_richness_rarefaction5, echo=F, results="hide"}
@@ -178,8 +178,8 @@ tb18_tax_occur_ss49975_no_cero<-tb18_tax_occur_ss49975[,-(which(colSums(tb18_tax
 tb18_tax_occur_ss49975_no_cero<-tb18_tax_occur_ss49975_no_cero[mixedorder(row.names(tb18_tax_occur_ss49975_no_cero)),]
 dim(tb18_tax_occur_ss49975_no_cero)
 
-#the final dimensions of the normalized table are 91 26657.
-#38645 + 8045 = 46690
+#the final dimensions of the normalized table are 91 38338.
+#38338 + 8352 = 46690
 ```
 \
 Datasets summary:
@@ -188,7 +188,7 @@ dim(tb18_tax) #original dataset
 
 dim(tb18_tax_occur) #original dataset with occurrence data alone
 
-dim(tb18_tax_occur_min49975) #dataset without samples with less than 1154 OTUs
+dim(tb18_tax_occur_min49975) #dataset without samples with less than 49975 OTUs
 
 dim(tb18_tax_occur_ss49975_no_cero) #rarefied dataset
 ```
