@@ -322,7 +322,7 @@ veiledspec(tb18_tax_occur_ss49975_dist_all)
 ```{r rarefraction_curve, echo=FALSE}
 rarec_input<-t(as.matrix(colSums(tb18_tax_occur_ss49975_no_cero)))
 
-tb18_rarecurve_step1000_ss49975<-rarecurve(rarec_input, step = 10000, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity, step=100 \n(38,307 OTUs; 4,547,725 reads)\n")
+tb18_rarecurve_step1000_ss49975<-rarecurve(rarec_input, step = 10000, xlab = "Sample size", ylab = "OTUs", label = TRUE, main="18S amplicons diversity, step=100 \n(38,338 OTUs; 4,547,725 reads)\n")
 
 
 #without rarefying
@@ -373,7 +373,7 @@ plot(tb18_tax_occur_ss49975_no_cero.nmds, main="monoMDs method")
 tb18_tax_occur_ss49975_no_cero.meta_nmds<-metaMDS(tb18_tax_occur_ss49975_no_cero.bray)
 plot(tb18_tax_occur_ss49975_no_cero.meta_nmds, main="metaMDS method")
 ```
---->
+
 
 
 ## 1.4) Geographical analysis
@@ -556,7 +556,7 @@ otu_tb18_ss49975_cosmop_sorted<-otu_tb18_ss49975_rabund_poccur_cosm[order(otu_tb
 otu_tb18_ss49975_cosmop_sorted_prov<-cbind(otu_names=row.names(otu_tb18_ss49975_cosmop_sorted),otu_tb18_ss49975_cosmop_sorted)
 otu_tb18_ss49975_cosmop_sorted_prov<-merge(otu_tb18_ss49975_cosmop_sorted_prov,tb18_class_prov, by="otu_names", all.x=TRUE)
 
-otu_tb18_ss49975_cosmop_sorted_prov<-otu_tb18_ss49975_cosmop_sorted_prov[order(otu_tb18_ss49975_cosmop_sorted_prov$perc_occur, otu_tb18_ss49975_cosmop_sorted_prov$mean_rabund, decreasing = T), c(1,2,3,5,4)]
+otu_tb18_ss49975_cosmop_sorted_prov<-otu_tb18_ss49975_cosmop_sorted_prov[order(otu_tb18_ss49975_cosmop_sorted_prov$perc_occur, otu_tb18_ss49975_cosmop_sorted_prov$mean_rabund, decreasing = T), c(1,2,3,7,4,5,6)]
 otu_tb18_ss49975_cosmop_sorted_prov
 #dim(otu_tb18_ss49975_cosmop_sorted_prov)
 ```
@@ -1540,7 +1540,7 @@ Reads per class vs. OTUs per class:
 ```{r OTUs_vs_reads_18S_v2_Heterotrophs_non.raref_v2, echo=FALSE, warnings=F, warning=F}
 ggplot(tb18S_OTUs_reads_samples_rel_abund) +
   geom_point(aes(OTUs_per_class, reads_per_class)) +
-  geom_text_repel(aes(OTUs_per_class, reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 3, box.padding = unit(0.1, "lines"), point.padding = unit(0.02, 'lines')) + labs(title="[A5] METAG 18S: reads per class vs. OTUs per class", x="\ndiversity (no. of OTUs in %)", y="abundance (no. of reads in %)\n") + scale_x_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100))  + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+  geom_text_repel(aes(OTUs_per_class, reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 3, box.padding = unit(0.1, "lines"), point.padding = unit(0.02, 'lines')) + labs(title="[A5] MP 18S: reads per class vs. OTUs per class", x="\ndiversity (no. of OTUs in %)", y="abundance (no. of reads in %)\n") + scale_x_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100))  + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
 ```
 
 \
@@ -1551,7 +1551,7 @@ Reads per class vs. samples in which they occurr:
 ```{r reads_vs_samples_18S_Heterotrophs_non.raref_v2, echo=FALSE, warning=F}
 ggplot(tb18S_OTUs_reads_samples_rel_abund) +
   geom_point(aes(samples_per_class,reads_per_class)) +
-  geom_text_repel(aes(samples_per_class,reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 8, box.padding = unit(0.1, "lines"), point.padding = unit(0.2, 'lines')) + scale_x_continuous(limits = c(0, 116), breaks=c(25,50,75,100)) + labs(title="[A6] METAG 18S: reads per class vs. samples in which they occur", x="\nsamples in which they occurr (%)", y="abundance (no. of reads in %)\n") + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+  geom_text_repel(aes(samples_per_class,reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 8, box.padding = unit(0.1, "lines"), point.padding = unit(0.2, 'lines')) + scale_x_continuous(limits = c(0, 116), breaks=c(25,50,75,100)) + labs(title="[A6] MP 18S: reads per class vs. samples in which they occur", x="\nsamples in which they occurr (%)", y="abundance (no. of reads in %)\n") + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
 ```
 
 
@@ -1805,7 +1805,7 @@ Reads per class vs. OTUs per class:
 ```{r OTUs_vs_reads_18S_v2_non.raref_v2, echo=FALSE, warnings=F, warning=F}
 ggplot(tb18S_OTUs_reads_samples_rel_abund) +
   geom_point(aes(OTUs_per_class, reads_per_class)) +
-  geom_text_repel(aes(OTUs_per_class, reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 3, box.padding = unit(0.1, "lines"), point.padding = unit(0.02, 'lines')) + labs(title="[A7] METAG 18S: reads per class vs. OTUs per class", x="\ndiversity (no. of OTUs in %)", y="abundance (no. of reads in %)\n") + scale_x_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100))  + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+  geom_text_repel(aes(OTUs_per_class, reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 3, box.padding = unit(0.1, "lines"), point.padding = unit(0.02, 'lines')) + labs(title="[A7] MP 18S: reads per class vs. OTUs per class", x="\ndiversity (no. of OTUs in %)", y="abundance (no. of reads in %)\n") + scale_x_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100))  + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
 ```
 
 \
@@ -1816,6 +1816,6 @@ Reads per class vs. samples in which they occurr:
 ```{r reads_vs_samples_18S_non.raref_v2, echo=FALSE, warning=F}
 ggplot(tb18S_OTUs_reads_samples_rel_abund) +
   geom_point(aes(samples_per_class,reads_per_class)) +
-  geom_text_repel(aes(samples_per_class,reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 8, box.padding = unit(0.1, "lines"), point.padding = unit(0.2, 'lines')) + scale_x_continuous(limits = c(0, 116), breaks=c(25,50,75,100)) + labs(title="[A8] METAG 18S: reads per class vs. samples in which they occur", x="\nsamples in which they occurr (%)", y="abundance (no. of reads in %)\n") + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
+  geom_text_repel(aes(samples_per_class,reads_per_class, label = rownames(tb18S_OTUs_reads_samples)), size=4, force = 8, box.padding = unit(0.1, "lines"), point.padding = unit(0.2, 'lines')) + scale_x_continuous(limits = c(0, 116), breaks=c(25,50,75,100)) + labs(title="[A8] MP 18S: reads per class vs. samples in which they occur", x="\nsamples in which they occurr (%)", y="abundance (no. of reads in %)\n") + scale_y_log10(limits = c(-1,200), breaks = c(0,0.1,1,10,100)) + theme(axis.text=element_text(size=14), axis.title=element_text(size=16))
 ```
 
